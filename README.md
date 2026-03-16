@@ -1,2 +1,97 @@
-# F1-2026-regulation-impact-analysis
-An end-to-end data science system using FastF1 telemetry and XGBoost to simulate how future engine and weight rules will change race dynamics across different circuits.
+# Predictive Modeling of Formula 1 Lap Time Dynamics and 2026 Regulation Impact
+
+**An end-to-end data science system using FastF1 telemetry, SQL data pipelines,
+machine learning, and simulation modeling to estimate the performance impact of
+the 2026 F1 regulation changes.**
+
+---
+
+## Project Overview
+
+This project builds a complete data science pipeline that:
+
+1. Ingests 3 seasons of Formula 1 telemetry data via the FastF1 API
+2. Stores and processes data through a Bronze → Silver → Gold architecture in MySQL
+3. Engineers domain-specific features from fuel weight, tire degradation, and circuit characteristics
+4. Trains and compares multiple ML models to predict lap time performance
+5. Simulates the expected impact of the 2026 F1 regulation changes
+6. Presents findings through an interactive Streamlit dashboard
+
+---
+
+## Architecture
+```
+FastF1 API → Data Ingestion → MySQL Bronze → Cleaning Pipeline →
+MySQL Silver → Feature Engineering → Gold Dataset →
+ML Training → 2026 Simulation → Streamlit Dashboard
+```
+
+---
+
+## Technology Stack
+
+| Layer | Tools |
+|---|---|
+| Data Collection | FastF1, Python |
+| Data Storage | MySQL 8.0 |
+| Data Processing | Pandas, NumPy |
+| Machine Learning | Scikit-Learn, XGBoost, LightGBM |
+| Explainability | SHAP |
+| Experiment Tracking | MLflow |
+| Dashboard | Streamlit, Plotly |
+| Configuration | PyYAML, python-dotenv |
+
+---
+
+## Setup Instructions
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/Tyranno08/f1-regulation-impact-analysis.git
+cd f1-regulation-impact-analysis
+```
+
+### 2. Create and activate virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate  # Mac/Linux
+venv\Scripts\activate     # Windows
+```
+
+### 3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure environment variables
+```bash
+cp .env.example .env
+# Edit .env with your MySQL credentials
+```
+
+### 5. Initialize the database
+```bash
+mysql -u root -p < sql/schema.sql
+python src/pipelines/seed_circuit_metadata.py
+```
+
+---
+
+## Project Status
+
+- [ ] Phase 1 — Repository & Infrastructure Setup
+- [ ] Phase 2 — Data Ingestion Pipeline
+- [ ] Phase 3 — Data Cleaning Pipeline
+- [ ] Phase 4 — Feature Engineering
+- [ ] Phase 5 — Modeling Pipeline
+- [ ] Phase 6 — Model Explainability
+- [ ] Phase 7 — Experiment Tracking
+- [ ] Phase 8 — 2026 Simulation Engine
+- [ ] Phase 9 — Streamlit Dashboard
+- [ ] Phase 10 — Deployment
+
+---
+
+## Author
+
+Sanket Patil — [LinkedIn](https://www.linkedin.com/in/sanket-patil-a7b801214/) | [GitHub](https://github.com/Tyranno08)

@@ -205,3 +205,41 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Virtual environment
+venv/
+env/
+
+# Environment variables - NEVER commit this
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Data files
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# FastF1 cache
+fastf1_cache/
+
+# MLflow runs
+mlruns/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Model artifacts
+*.pkl
+*.joblib
+*.model

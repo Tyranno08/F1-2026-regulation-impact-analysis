@@ -1,0 +1,132 @@
+# Project Configuration
+
+project:
+  name: "F1 Regulation Impact Analysis"
+  version: "1.0.0"
+
+seasons:
+  - 2022
+  - 2023
+  - 2024
+  - 2025
+
+# Circuits to include in the analysis
+circuits:
+  - name: "Monza"
+    country: "Italy"
+    power_sensitivity_score: 0.95
+    track_length_km: 5.793
+    num_corners: 11
+    drs_zones: 2
+    elevation_change_m: 12
+    avg_corner_speed_kmh: 210
+    full_throttle_pct: 0.77
+
+  - name: "Spa"
+    country: "Belgium"
+    power_sensitivity_score: 0.90
+    track_length_km: 7.004
+    num_corners: 19
+    drs_zones: 2
+    elevation_change_m: 104
+    avg_corner_speed_kmh: 185
+    full_throttle_pct: 0.68
+
+  - name: "Silverstone"
+    country: "Great Britain"
+    power_sensitivity_score: 0.75
+    track_length_km: 5.891
+    num_corners: 18
+    drs_zones: 2
+    elevation_change_m: 19
+    avg_corner_speed_kmh: 175
+    full_throttle_pct: 0.62
+
+  - name: "Bahrain"
+    country: "Bahrain"
+    power_sensitivity_score: 0.65
+    track_length_km: 5.412
+    num_corners: 15
+    drs_zones: 3
+    elevation_change_m: 5
+    avg_corner_speed_kmh: 155
+    full_throttle_pct: 0.58
+
+  - name: "Suzuka"
+    country: "Japan"
+    power_sensitivity_score: 0.70
+    track_length_km: 5.807
+    num_corners: 18
+    drs_zones: 1
+    elevation_change_m: 42
+    avg_corner_speed_kmh: 170
+    full_throttle_pct: 0.60
+
+  - name: "Monaco"
+    country: "Monaco"
+    power_sensitivity_score: 0.20
+    track_length_km: 3.337
+    num_corners: 19
+    drs_zones: 1
+    elevation_change_m: 42
+    avg_corner_speed_kmh: 95
+    full_throttle_pct: 0.38
+
+  - name: "Hungaroring"
+    country: "Hungary"
+    power_sensitivity_score: 0.35
+    track_length_km: 4.381
+    num_corners: 14
+    drs_zones: 1
+    elevation_change_m: 33
+    avg_corner_speed_kmh: 120
+    full_throttle_pct: 0.40
+
+  - name: "Interlagos"
+    country: "Brazil"
+    power_sensitivity_score: 0.72
+    track_length_km: 4.309
+    num_corners: 15
+    drs_zones: 2
+    elevation_change_m: 40
+    avg_corner_speed_kmh: 160
+    full_throttle_pct: 0.55
+
+# Fuel model parameters
+fuel_model:
+  starting_fuel_kg: 110
+  burn_rate_kg_per_lap: 1.8
+  car_dry_weight_kg: 798
+
+# Tire degradation parameters
+tire_model:
+  compounds:
+    SOFT:
+      compound_factor: 1.0
+      degradation_rate: 0.045
+    MEDIUM:
+      compound_factor: 0.97
+      degradation_rate: 0.028
+    HARD:
+      compound_factor: 0.94
+      degradation_rate: 0.015
+    INTERMEDIATE:
+      compound_factor: 0.85
+      degradation_rate: 0.020
+    WET:
+      compound_factor: 0.75
+      degradation_rate: 0.012
+
+# 2026 Simulation Parameters
+simulation_2026:
+  weight_reduction_kg: 30
+  combustion_power_penalty_factor: 0.02
+  electric_torque_gain_factor: 0.015
+
+# Modeling configuration
+modeling:
+  target_variable: "lap_time_delta_from_session_median"
+  test_size: 0.2
+  cv_folds: 5
+  random_state: 42
+  rmse_target_seconds: 0.5
