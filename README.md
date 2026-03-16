@@ -79,8 +79,8 @@ python src/pipelines/seed_circuit_metadata.py
 
 ## Project Status
 
-- [ ] Phase 1 — Repository & Infrastructure Setup
-- [ ] Phase 2 — Data Ingestion Pipeline
+- [x] Phase 1 — Repository & Infrastructure Setup
+- [x] Phase 2 — Data Ingestion Pipeline
 - [ ] Phase 3 — Data Cleaning Pipeline
 - [ ] Phase 4 — Feature Engineering
 - [ ] Phase 5 — Modeling Pipeline
@@ -89,7 +89,6 @@ python src/pipelines/seed_circuit_metadata.py
 - [ ] Phase 8 — 2026 Simulation Engine
 - [ ] Phase 9 — Streamlit Dashboard
 - [ ] Phase 10 — Deployment
-
 ---
 
 ## Author

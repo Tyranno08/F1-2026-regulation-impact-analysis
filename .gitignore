@@ -243,3 +243,7 @@ Thumbs.db
 *.pkl
 *.joblib
 *.model
+
+# Log files
+logs/
+*.log
