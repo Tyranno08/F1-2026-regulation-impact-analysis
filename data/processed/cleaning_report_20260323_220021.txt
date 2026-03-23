@@ -1,0 +1,61 @@
+
+======================================================================
+DATA CLEANING PIPELINE — QUALITY REPORT
+Generated: 2026-03-23 22:00:21
+======================================================================
+
+REMOVAL AUDIT TRAIL
+----------------------------------------------------------------------
+  Null or unparseable lap times                   1272 laps  (3.3%)
+  Formation laps and lap zero                        0 laps  (0.0%)
+  Pit stop laps (in-lap + out-lap)                2277 laps  (5.8%)
+  Safety car and VSC laps                         1602 laps  (4.1%)
+  Unknown driver identifier                          0 laps  (0.0%)
+  Physically impossible times                        0 laps  (0.0%)
+  Statistical outliers (>3 sigma)                  174 laps  (0.4%)
+
+----------------------------------------------------------------------
+  Total raw laps                                 38992
+  Total removed                                   5325 (13.7%)
+  Total clean laps retained                      33667 (86.3%)
+
+CLEAN DATASET COMPOSITION
+----------------------------------------------------------------------
+  By Season:
+    2023   10747 laps  [train]
+    2024   10974 laps  [train]
+    2025   10306 laps  [train]
+    2026    1640 laps  [validation]
+
+  By Circuit:
+    Monaco                      3861 laps
+    China                       3692 laps
+    Hungaroring                 3689 laps
+    Spa                         3391 laps
+    Interlagos                  3375 laps
+    Australia                   3000 laps
+    Bahrain                     2902 laps
+    Monza                       2706 laps
+    Suzuka                      2472 laps
+    Jeddah                      2438 laps
+    Silverstone                 2141 laps
+
+  By Compound:
+    HARD             17445 laps  (51.8%)
+    MEDIUM           10355 laps  (30.8%)
+    SOFT              4260 laps  (12.7%)
+    INTERMEDIATE      1568 laps  (4.7%)
+    WET                 39 laps  (0.1%)
+
+  Lap Time Delta (target variable):
+    Mean:   0.2904s
+    Median: 0.0000s
+    Std:    2.7177s
+    Min:    -13.6285s
+    Max:    31.6280s
+
+  Weather Coverage:
+    Track temp available:  33667 laps (100.0%)
+    Air temp available:    33667 laps (100.0%)
+
+======================================================================

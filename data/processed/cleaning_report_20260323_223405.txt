@@ -1,0 +1,61 @@
+
+======================================================================
+DATA CLEANING PIPELINE — QUALITY REPORT
+Generated: 2026-03-23 22:34:05
+======================================================================
+
+REMOVAL AUDIT TRAIL
+----------------------------------------------------------------------
+  Null or unparseable lap times                               1272 laps  (3.3%)
+  Formation laps and lap zero                                    0 laps  (0.0%)
+  Pit stop laps (in-lap + out-lap)                            2277 laps  (5.8%)
+  Safety car and VSC laps                                     1602 laps  (4.1%)
+  Unknown driver identifier                                      0 laps  (0.0%)
+  Physically impossible times                                    0 laps  (0.0%)
+  Rain-dominated sessions (>50% wet) — entire session dropped  1064 laps  (2.7%)
+  Individual wet/intermediate laps from partial-rain sessions   813 laps  (2.1%)
+  Statistical outliers (>2.5 sigma)                            383 laps  (1.0%)
+
+----------------------------------------------------------------------
+  Total raw laps                                             38992
+  Total removed                                               7411 (19.0%)
+  Total clean laps retained                                  31581 (81.0%)
+
+CLEAN DATASET COMPOSITION
+----------------------------------------------------------------------
+  By Season:
+    2023   10046 laps  [train]
+    2024   10710 laps  [train]
+    2025    9189 laps  [train]
+    2026    1636 laps  [validation]
+
+  By Circuit:
+    China                       3686 laps
+    Hungaroring                 3663 laps
+    Monaco                      3411 laps
+    Spa                         3366 laps
+    Interlagos                  3133 laps
+    Bahrain                     2891 laps
+    Monza                       2690 laps
+    Suzuka                      2466 laps
+    Australia                   2428 laps
+    Jeddah                      2416 laps
+    Silverstone                 1431 laps
+
+  By Compound:
+    HARD             17308 laps  (54.8%)
+    MEDIUM           10083 laps  (31.9%)
+    SOFT              4190 laps  (13.3%)
+
+  Lap Time Delta (target variable):
+    Mean:   0.0290s
+    Median: 0.0000s
+    Std:    1.3181s
+    Min:    -5.2705s
+    Max:    16.0910s
+
+  Weather Coverage:
+    Track temp available:  31581 laps (100.0%)
+    Air temp available:    31581 laps (100.0%)
+
+======================================================================

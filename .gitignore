@@ -247,3 +247,11 @@ Thumbs.db
 # Log files
 logs/
 *.log
+
+# Data files — raw and processed data not committed
+data/raw/*
+data/processed/*
+
+# Exception — commit quality reports and metadata
+!data/processed/.gitkeep
+!data/processed/cleaning_report_*.txt

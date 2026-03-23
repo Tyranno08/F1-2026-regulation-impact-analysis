@@ -79,8 +79,8 @@ python src/pipelines/seed_circuit_metadata.py
 
 - [x] Phase 1 — Repository & Infrastructure Setup
 - [x] Phase 2 — Data Ingestion Pipeline (2023, 2024, 2025 training data)
-- [ ] Phase 2B — 2026 Race Data Ingestion (validation ground truth)
-- [ ] Phase 3 — Data Cleaning Pipeline
+- [x] Phase 2B — 2026 Race Data Ingestion (Australia, China)
+- [x] Phase 3 — Data Cleaning Pipeline
 - [ ] Phase 4 — Feature Engineering
 - [ ] Phase 5 — Modeling Pipeline
 - [ ] Phase 6 — Model Explainability
@@ -89,8 +89,9 @@ python src/pipelines/seed_circuit_metadata.py
 - [ ] Phase 8B — Simulation Validation Against Real 2026 Data
 - [ ] Phase 9 — Streamlit Dashboard
 - [ ] Phase 10 — Deployment
----
+```
 
+```
 ## Author
 
 Sanket Patil — [LinkedIn](https://www.linkedin.com/in/sanket-patil-a7b801214/) | [GitHub](https://github.com/Tyranno08)

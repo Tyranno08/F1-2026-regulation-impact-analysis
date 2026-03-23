@@ -1,0 +1,46 @@
+
+======================================================================
+DATA CLEANING PIPELINE — QUALITY REPORT
+Generated: 2026-03-23 21:55:49
+======================================================================
+
+REMOVAL AUDIT TRAIL
+----------------------------------------------------------------------
+  Null or unparseable lap times                     20 laps  (2.0%)
+  Formation laps and lap zero                        0 laps  (0.0%)
+  Pit stop laps (in-lap + out-lap)                  61 laps  (6.1%)
+  Safety car and VSC laps                            0 laps  (0.0%)
+  Unknown driver identifier                          0 laps  (0.0%)
+  Physically impossible times                        0 laps  (0.0%)
+  Statistical outliers (>3 sigma)                    3 laps  (0.3%)
+
+----------------------------------------------------------------------
+  Total raw laps                                  1008
+  Total removed                                     84 (8.3%)
+  Total clean laps retained                        924 (91.7%)
+
+CLEAN DATASET COMPOSITION
+----------------------------------------------------------------------
+  By Season:
+    2024     924 laps  [train]
+
+  By Circuit:
+    Monza                        924 laps
+
+  By Compound:
+    HARD               685 laps  (74.1%)
+    MEDIUM             238 laps  (25.8%)
+    SOFT                 1 laps  (0.1%)
+
+  Lap Time Delta (target variable):
+    Mean:   -0.0643s
+    Median: -0.0000s
+    Std:    1.2341s
+    Min:    -3.4225s
+    Max:    3.6185s
+
+  Weather Coverage:
+    Track temp available:    924 laps (100.0%)
+    Air temp available:      924 laps (100.0%)
+
+======================================================================
