@@ -1,8 +1,6 @@
 # Predictive Modeling of Formula 1 Lap Time Dynamics and 2026 Regulation Impact
 
-**An end-to-end data science system using FastF1 telemetry, SQL data pipelines,
-machine learning, and simulation modeling to estimate the performance impact of
-the 2026 F1 regulation changes.**
+**An end-to-end data science system using FastF1 telemetry, SQL data pipelines, machine learning, and simulation modeling to predict and validate the real-world performance impact of the 2026 F1 regulation changes, cross-referenced against actual 2026 race data.**
 
 ---
 
@@ -80,13 +78,15 @@ python src/pipelines/seed_circuit_metadata.py
 ## Project Status
 
 - [x] Phase 1 — Repository & Infrastructure Setup
-- [x] Phase 2 — Data Ingestion Pipeline
+- [x] Phase 2 — Data Ingestion Pipeline (2023, 2024, 2025 training data)
+- [ ] Phase 2B — 2026 Race Data Ingestion (validation ground truth)
 - [ ] Phase 3 — Data Cleaning Pipeline
 - [ ] Phase 4 — Feature Engineering
 - [ ] Phase 5 — Modeling Pipeline
 - [ ] Phase 6 — Model Explainability
 - [ ] Phase 7 — Experiment Tracking
 - [ ] Phase 8 — 2026 Simulation Engine
+- [ ] Phase 8B — Simulation Validation Against Real 2026 Data
 - [ ] Phase 9 — Streamlit Dashboard
 - [ ] Phase 10 — Deployment
 ---

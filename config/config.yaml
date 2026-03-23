@@ -4,12 +4,30 @@ project:
   name: "F1 Regulation Impact Analysis"
   version: "1.0.0"
 
-seasons:
+# Training seasons — used to build and train the ML model
+training_seasons:
   - 2023
   - 2024
   - 2025
 
-# Circuits to include in the analysis
+# Validation seasons — real 2026 results to validate simulation
+validation_seasons:
+  - 2026
+
+# The two 2026 circuits with real race data available
+# Race 1: Australian Grand Prix — Melbourne
+# Race 2: Chinese Grand Prix — Shanghai
+validation_circuits_2026:
+  - name: "Australia"
+    race_number: 1
+    full_name: "Australian Grand Prix"
+    location: "Melbourne"
+  - name: "China"
+    race_number: 2
+    full_name: "Chinese Grand Prix"
+    location: "Shanghai"
+
+# All circuits included in analysis
 circuits:
   - name: "Monza"
     country: "Italy"
@@ -89,6 +107,36 @@ circuits:
     drs_zones: 2
     elevation_change_m: 40
     avg_corner_speed_kmh: 160
+    full_throttle_pct: 0.55
+
+  - name: "Jeddah"
+    country: "Saudi Arabia"
+    power_sensitivity_score: 0.85
+    track_length_km: 6.174
+    num_corners: 27
+    drs_zones: 3
+    elevation_change_m: 12
+    avg_corner_speed_kmh: 195
+    full_throttle_pct: 0.71
+
+  - name: "Australia"
+    country: "Australia"
+    power_sensitivity_score: 0.60
+    track_length_km: 5.278
+    num_corners: 16
+    drs_zones: 4
+    elevation_change_m: 8
+    avg_corner_speed_kmh: 158
+    full_throttle_pct: 0.59
+
+  - name: "China"
+    country: "China"
+    power_sensitivity_score: 0.62
+    track_length_km: 5.451
+    num_corners: 16
+    drs_zones: 2
+    elevation_change_m: 8
+    avg_corner_speed_kmh: 162
     full_throttle_pct: 0.55
 
 # Fuel model parameters

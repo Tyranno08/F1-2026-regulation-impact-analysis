@@ -47,6 +47,52 @@ logger = get_logger("ingestion")
 # ============================================================
 # FastF1 Setup
 # ============================================================
+def build_driver_lookup(season: int, conn) -> dict:
+    """
+    Builds a dictionary mapping driver abbreviations to their
+    metadata for a given season, using our driver_reference table.
+
+    This is the fallback used when FastF1 cannot resolve a driver
+    abbreviation to a number. By having our own reference, we can
+    fill in missing driver info rather than letting the session fail.
+
+    Args:
+        season: The race season year
+        conn:   Active MySQL connection
+
+    Returns:
+        Dictionary keyed by abbreviation with driver metadata.
+        Example: {"VER": {"number": 1, "full_name": "Max Verstappen",
+                          "team": "Red Bull Racing"}}
+    """
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT
+            abbreviation,
+            driver_number,
+            full_name,
+            team
+        FROM driver_reference
+        WHERE season = %s
+        """,
+        (season,)
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    lookup = {}
+    for row in rows:
+        lookup[row["abbreviation"]] = {
+            "number": row["driver_number"],
+            "full_name": row["full_name"],
+            "team": row["team"]
+        }
+
+    logger.debug(
+        f"Built driver lookup for {season}: {len(lookup)} drivers"
+    )
+    return lookup
 
 def setup_fastf1_cache(cache_path: str) -> None:
     """
@@ -93,19 +139,33 @@ def td_to_seconds(val) -> float | None:
 # Session Loading
 # ============================================================
 
-def load_race_session(season: int, circuit: str) -> fastf1.core.Session | None:
+def load_race_session(
+    season: int,
+    circuit: str
+) -> fastf1.core.Session | None:
     """
-    Loads a single race session from FastF1.
+    Loads a single race session from FastF1 with robust error handling.
+
+    The driver number error that killed 2022 data happens during
+    session.load() when FastF1 cannot reconcile its internal driver
+    number mapping. We handle this by:
+
+    1. Attempting a full load with all data
+    2. If that fails with a driver-related error, attempting a
+       partial load without telemetry (laps only)
+    3. If that also fails, logging and returning None
 
     Args:
         season:  The year (e.g., 2023)
-        circuit: The circuit name as FastF1 knows it (e.g., 'Monza')
+        circuit: The circuit name (e.g., 'Monza')
 
     Returns:
-        A loaded FastF1 Session object, or None if loading fails.
+        A loaded FastF1 Session object or None if all attempts fail.
     """
+    logger.info(f"Loading session: {season} {circuit} Race")
+
+    # Attempt 1 — Full load with laps, telemetry, and weather
     try:
-        logger.info(f"Loading session: {season} {circuit} Race")
         session = fastf1.get_session(season, circuit, "R")
         session.load(
             laps=True,
@@ -114,14 +174,79 @@ def load_race_session(season: int, circuit: str) -> fastf1.core.Session | None:
             messages=False
         )
         logger.info(
-            f"Session loaded successfully: {season} {circuit} "
+            f"Full load successful: {season} {circuit} "
             f"({len(session.laps)} laps)"
+        )
+        return session
+
+    except KeyError as e:
+        # KeyError is the specific error thrown by FastF1 when
+        # a driver number cannot be resolved in its lookup table.
+        # This was exactly the error that made 2022 unusable.
+        logger.warning(
+            f"Driver number KeyError on full load for "
+            f"{season} {circuit}: {e}. "
+            f"Attempting laps-only load."
+        )
+
+    except Exception as e:
+        logger.warning(
+            f"Full load failed for {season} {circuit}: "
+            f"{type(e).__name__}: {e}. "
+            f"Attempting laps-only load."
+        )
+
+    # Attempt 2 — Laps only, no telemetry
+    # Telemetry loading is often the source of driver number
+    # resolution failures, so skipping it often resolves the issue
+    try:
+        session = fastf1.get_session(season, circuit, "R")
+        session.load(
+            laps=True,
+            telemetry=False,
+            weather=True,
+            messages=False
+        )
+        logger.info(
+            f"Laps-only load successful: {season} {circuit} "
+            f"({len(session.laps)} laps) — telemetry unavailable"
+        )
+        return session
+
+    except KeyError as e:
+        logger.warning(
+            f"Driver number KeyError on laps-only load for "
+            f"{season} {circuit}: {e}. "
+            f"Attempting minimal load."
+        )
+
+    except Exception as e:
+        logger.warning(
+            f"Laps-only load failed for {season} {circuit}: "
+            f"{type(e).__name__}: {e}. "
+            f"Attempting minimal load."
+        )
+
+    # Attempt 3 — Absolute minimum load, no weather either
+    # Last resort before giving up on this session entirely
+    try:
+        session = fastf1.get_session(season, circuit, "R")
+        session.load(
+            laps=True,
+            telemetry=False,
+            weather=False,
+            messages=False
+        )
+        logger.info(
+            f"Minimal load successful: {season} {circuit} "
+            f"({len(session.laps)} laps) — telemetry and weather unavailable"
         )
         return session
 
     except Exception as e:
         logger.error(
-            f"Failed to load session {season} {circuit}: {type(e).__name__}: {e}"
+            f"All load attempts failed for {season} {circuit}: "
+            f"{type(e).__name__}: {e}"
         )
         return None
 
@@ -133,143 +258,230 @@ def load_race_session(season: int, circuit: str) -> fastf1.core.Session | None:
 def extract_laps_from_session(
     session: fastf1.core.Session,
     season: int,
-    circuit: str
+    circuit: str,
+    driver_lookup: dict = None
 ) -> list[dict]:
     """
     Extracts lap-level data from a loaded FastF1 session.
 
-    We extract only the fields our Bronze schema expects.
-    We do NOT clean, filter, or transform here — that is Phase 3's job.
-    We store everything including pit laps, safety car laps, and outlaps
-    so the Silver cleaning pipeline has complete information to work with.
+    Key improvement over the original version:
+    Each lap is processed inside its own try-except block.
+    If a single lap raises a driver number error or any other
+    exception, that lap is skipped and logged rather than
+    crashing the entire session extraction.
+
+    Also uses driver_lookup as a fallback when FastF1 cannot
+    provide complete driver information from the session itself.
 
     Args:
-        session: A loaded FastF1 Session object
-        season:  The race season year
-        circuit: The circuit name
+        session:       A loaded FastF1 Session object
+        season:        The race season year
+        circuit:       The circuit name
+        driver_lookup: Optional dict from build_driver_lookup()
+                       Used to fill in driver info when FastF1 fails
 
     Returns:
         A list of dictionaries, each representing one lap row.
     """
     rows = []
+    failed_laps = 0
     laps = session.laps
 
     if laps is None or len(laps) == 0:
         logger.warning(f"No lap data found for {season} {circuit}")
         return rows
 
-    # Build a race_id like "2023_Monza" for easy filtering later
     race_id = f"{season}_{circuit.replace(' ', '_')}"
 
-    # Try to get weather data — not always available
+    # Try to get weather data
     try:
         weather_data = session.weather_data
-        has_weather = weather_data is not None and len(weather_data) > 0
+        has_weather = (
+            weather_data is not None and
+            len(weather_data) > 0 and
+            "TrackTemp" in weather_data.columns
+        )
     except Exception:
         has_weather = False
         logger.warning(f"Weather data unavailable for {season} {circuit}")
 
-    for _, lap in laps.iterrows():
+    for idx, lap in laps.iterrows():
 
-        # ---- Lap Time & Sector Times ----
-        # FastF1 returns these as pandas Timedelta objects.
-        # We convert to plain float seconds (e.g. 82.456) so they
-        # fit into MySQL FLOAT columns cleanly.
-        lap_time   = td_to_seconds(lap.get("LapTime", None))
-        sector1    = td_to_seconds(lap.get("Sector1Time", None))
-        sector2    = td_to_seconds(lap.get("Sector2Time", None))
-        sector3    = td_to_seconds(lap.get("Sector3Time", None))
+        # Wrap each individual lap in its own try-except
+        # This is the core of the driver number fix —
+        # one problematic driver cannot kill all other laps
+        try:
 
-        # ---- Safety Car Detection ----
-        # FastF1 tracks track status during laps.
-        # Status codes: 1=Clear, 2=Yellow, 4=SC, 6=VSC, 7=Red
-        track_status = str(lap.get("TrackStatus", "1"))
-        is_safety_car = any(code in track_status for code in ["4", "6", "7"])
+            # ---- Lap Time & Sector Times ----
+            # FastF1 returns these as pandas Timedelta objects.
+            # We use td_to_seconds() to convert them to plain floats
+            # (e.g. 82.456) so they fit into MySQL FLOAT columns.
+            # Storing them as strings causes the "Data too long" error.
+            lap_time_str = td_to_seconds(lap.get("LapTime", None))
+            sector1_str  = td_to_seconds(lap.get("Sector1Time", None))
+            sector2_str  = td_to_seconds(lap.get("Sector2Time", None))
+            sector3_str  = td_to_seconds(lap.get("Sector3Time", None))
 
-        # ---- Pit Lap Detection ----
-        pit_out_time = lap.get("PitOutTime", None)
-        pit_in_time = lap.get("PitInTime", None)
-        is_pit_lap = bool(
-            (pit_out_time is not None and not pd.isna(pit_out_time)) or
-            (pit_in_time is not None and not pd.isna(pit_in_time))
+            # ---- Safety Car ----
+            track_status = str(lap.get("TrackStatus", "1"))
+            is_safety_car = any(
+                code in track_status for code in ["4", "6", "7"]
+            )
+
+            # ---- Pit Lap ----
+            pit_out_time = lap.get("PitOutTime", None)
+            pit_in_time = lap.get("PitInTime", None)
+            is_pit_lap = bool(
+                (pit_out_time is not None and
+                 not pd.isna(pit_out_time)) or
+                (pit_in_time is not None and
+                 not pd.isna(pit_in_time))
+            )
+
+            # ---- Speed Trap ----
+            speed_trap = lap.get("SpeedST", None)
+            if speed_trap is not None and not pd.isna(speed_trap):
+                speed_trap = float(speed_trap)
+            else:
+                speed_trap = None
+
+            # ---- Weather ----
+            track_temp = None
+            air_temp = None
+            humidity = None
+
+            if has_weather:
+                try:
+                    lap_time_val = lap.get("Time", None)
+                    if (lap_time_val is not None and
+                            not pd.isna(lap_time_val)):
+                        time_diff = (
+                            weather_data["Time"] - lap_time_val
+                        ).abs()
+                        closest_idx = time_diff.idxmin()
+                        weather_row = weather_data.loc[closest_idx]
+                        track_temp = float(
+                            weather_row.get("TrackTemp", 0) or 0
+                        )
+                        air_temp = float(
+                            weather_row.get("AirTemp", 0) or 0
+                        )
+                        humidity = float(
+                            weather_row.get("Humidity", 0) or 0
+                        )
+                except Exception:
+                    pass
+
+            # ---- Driver Info with Fallback ----
+            # This is where the driver number fix is applied.
+            # We first try to get driver info from FastF1 directly.
+            # If that raises any error, we fall back to our
+            # driver_reference table lookup.
+            try:
+                driver = str(lap.get("Driver", "UNK"))
+                team = str(lap.get("Team", "Unknown"))
+
+                # Validate driver abbreviation is not empty or numeric
+                if not driver or driver.isdigit() or driver == "nan":
+                    raise ValueError(
+                        f"Invalid driver abbreviation: {driver}"
+                    )
+
+            except Exception as driver_error:
+                # Attempt fallback using driver number
+                driver_num = lap.get("DriverNumber", None)
+
+                if (driver_lookup and
+                        driver_num is not None and
+                        not pd.isna(driver_num)):
+                    # Find abbreviation by number in our lookup
+                    driver_num_int = int(driver_num)
+                    found = False
+                    for abbr, info in driver_lookup.items():
+                        if info["number"] == driver_num_int:
+                            driver = abbr
+                            team = info["team"]
+                            found = True
+                            logger.debug(
+                                f"Driver fallback used: "
+                                f"#{driver_num_int} -> {abbr}"
+                            )
+                            break
+
+                    if not found:
+                        driver = f"D{int(driver_num)}"
+                        team = "Unknown"
+                        logger.warning(
+                            f"Driver #{driver_num_int} not in "
+                            f"reference table for {season}"
+                        )
+                else:
+                    driver = "UNK"
+                    team = "Unknown"
+                    logger.warning(
+                        f"Could not resolve driver for lap "
+                        f"{idx} in {season} {circuit}: "
+                        f"{driver_error}"
+                    )
+
+            # ---- Compound and Tire Life ----
+            compound = str(lap.get("Compound", "UNKNOWN"))
+            if compound in ("nan", "None", ""):
+                compound = "UNKNOWN"
+
+            tire_life = lap.get("TyreLife", None)
+            if tire_life is not None and not pd.isna(tire_life):
+                tire_life = int(tire_life)
+            else:
+                tire_life = None
+
+            # ---- Lap Number ----
+            lap_number = lap.get("LapNumber", None)
+            if lap_number is not None and not pd.isna(lap_number):
+                lap_number = int(lap_number)
+            else:
+                lap_number = None
+
+            row = {
+                "race_id": race_id,
+                "season": season,
+                "circuit": circuit,
+                "driver": driver,
+                "team": team,
+                "lap_number": lap_number,
+                "lap_time": lap_time_str,
+                "sector1_time": sector1_str,
+                "sector2_time": sector2_str,
+                "sector3_time": sector3_str,
+                "compound": compound,
+                "tire_life": tire_life,
+                "track_temp": track_temp,
+                "air_temp": air_temp,
+                "humidity": humidity,
+                "speed_trap": speed_trap,
+                "is_pit_lap": is_pit_lap,
+                "is_safety_car": is_safety_car
+            }
+
+            rows.append(row)
+
+        except Exception as e:
+            failed_laps += 1
+            logger.debug(
+                f"Skipped lap {idx} in {season} {circuit}: "
+                f"{type(e).__name__}: {e}"
+            )
+            continue
+
+    if failed_laps > 0:
+        logger.warning(
+            f"{failed_laps} laps skipped in {season} {circuit} "
+            f"due to extraction errors"
         )
 
-        # ---- Speed Trap ----
-        speed_trap = lap.get("SpeedST", None)
-        if speed_trap is not None and not pd.isna(speed_trap):
-            speed_trap = float(speed_trap)
-        else:
-            speed_trap = None
-
-        # ---- Weather ----
-        # We match weather to lap by finding the closest weather
-        # timestamp to the lap's session time
-        track_temp = None
-        air_temp = None
-        humidity = None
-
-        if has_weather:
-            try:
-                lap_time_val = lap.get("Time", None)
-                if lap_time_val is not None and not pd.isna(lap_time_val):
-                    # Find the weather row closest in time to this lap
-                    time_diff = (
-                        weather_data["Time"] - lap_time_val
-                    ).abs()
-                    closest_idx = time_diff.idxmin()
-                    weather_row = weather_data.loc[closest_idx]
-
-                    track_temp = float(weather_row.get("TrackTemp", 0))
-                    air_temp = float(weather_row.get("AirTemp", 0))
-                    humidity = float(weather_row.get("Humidity", 0))
-            except Exception:
-                pass
-
-        # ---- Driver and Team ----
-        driver = str(lap.get("Driver", "UNK"))
-        team = str(lap.get("Team", "Unknown"))
-
-        # ---- Compound and Tire Life ----
-        compound = str(lap.get("Compound", "UNKNOWN"))
-        tire_life = lap.get("TyreLife", None)
-        if tire_life is not None and not pd.isna(tire_life):
-            tire_life = int(tire_life)
-        else:
-            tire_life = None
-
-        # ---- Lap Number ----
-        lap_number = lap.get("LapNumber", None)
-        if lap_number is not None and not pd.isna(lap_number):
-            lap_number = int(lap_number)
-        else:
-            lap_number = None
-
-        # Build the row dictionary matching Bronze schema exactly
-        row = {
-            "race_id":      race_id,
-            "season":       season,
-            "circuit":      circuit,
-            "driver":       driver,
-            "team":         team,
-            "lap_number":   lap_number,
-            "lap_time":     lap_time,       # float seconds e.g. 82.456
-            "sector1_time": sector1,        # float seconds e.g. 27.123
-            "sector2_time": sector2,        # float seconds e.g. 31.456
-            "sector3_time": sector3,        # float seconds e.g. 23.877
-            "compound":     compound,
-            "tire_life":    tire_life,
-            "track_temp":   track_temp,
-            "air_temp":     air_temp,
-            "humidity":     humidity,
-            "speed_trap":   speed_trap,
-            "is_pit_lap":   is_pit_lap,
-            "is_safety_car": is_safety_car
-        }
-
-        rows.append(row)
-
     logger.info(
-        f"Extracted {len(rows)} lap rows from {season} {circuit}"
+        f"Extracted {len(rows)} lap rows from {season} {circuit} "
+        f"({failed_laps} skipped)"
     )
     return rows
 
@@ -470,7 +682,7 @@ def run_ingestion_pipeline(
 
     # Resolve seasons and circuits to process
     if seasons is None:
-        seasons = config["seasons"]
+        seasons = config["training_seasons"]
 
     if circuits is None:
         circuits = [c["name"] for c in config["circuits"]]
@@ -489,6 +701,16 @@ def run_ingestion_pipeline(
 
     # ---- Main Loop ----
     for season in seasons:
+
+        # Build driver lookup once per season, reuse for all circuits
+        # This avoids querying the database on every single lap
+        logger.info(f"Building driver lookup for {season}...")
+        driver_lookup = build_driver_lookup(season, conn)
+        logger.info(
+            f"Driver lookup ready for {season}: "
+            f"{len(driver_lookup)} drivers"
+        )
+
         for circuit in circuits:
 
             race_id = f"{season}_{circuit.replace(' ', '_')}"
@@ -501,7 +723,6 @@ def run_ingestion_pipeline(
 
             logger.info(f"--- Processing: {season} {circuit} ---")
 
-            # Skip if already in database
             if check_session_already_ingested(cursor, race_id):
                 logger.info(
                     f"SKIPPED — {race_id} already exists in database"
@@ -511,7 +732,6 @@ def run_ingestion_pipeline(
                 summary.append(result)
                 continue
 
-            # Load session from FastF1
             session = load_race_session(season, circuit)
 
             if session is None:
@@ -519,26 +739,30 @@ def run_ingestion_pipeline(
                     f"SKIPPED — Could not load session for {race_id}"
                 )
                 summary.append(result)
-                # Pause briefly before trying the next session
                 time.sleep(2)
                 continue
 
-            # Extract lap data from session
-            rows = extract_laps_from_session(session, season, circuit)
+            # Pass driver_lookup to extraction function
+            rows = extract_laps_from_session(
+                session,
+                season,
+                circuit,
+                driver_lookup=driver_lookup
+            )
 
             if not rows:
-                logger.warning(f"SKIPPED — No rows extracted for {race_id}")
+                logger.warning(
+                    f"SKIPPED — No rows extracted for {race_id}"
+                )
                 summary.append(result)
                 continue
 
-            # Insert into Bronze table
             inserted = insert_laps_to_bronze(rows, conn)
 
             result["success"] = inserted > 0
             result["rows_inserted"] = inserted
             summary.append(result)
 
-            # Be respectful to the API — pause between sessions
             logger.info(f"Pausing 3 seconds before next session...")
             time.sleep(3)
 
