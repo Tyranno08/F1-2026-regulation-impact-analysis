@@ -81,7 +81,7 @@ python src/pipelines/seed_circuit_metadata.py
 - [x] Phase 2 — Data Ingestion Pipeline (2023, 2024, 2025 training data)
 - [x] Phase 2B — 2026 Race Data Ingestion (Australia, China)
 - [x] Phase 3 — Data Cleaning Pipeline
-- [ ] Phase 4 — Feature Engineering
+- [x] Phase 4 — Feature Engineering
 - [ ] Phase 5 — Modeling Pipeline
 - [ ] Phase 6 — Model Explainability
 - [ ] Phase 7 — Experiment Tracking
