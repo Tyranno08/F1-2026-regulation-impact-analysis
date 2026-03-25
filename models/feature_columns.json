@@ -1,0 +1,22 @@
+[
+  "circuit",
+  "total_car_weight",
+  "fuel_weight_estimate",
+  "lap_number",
+  "effective_tire_grip",
+  "tire_life",
+  "compound",
+  "sector1_ratio",
+  "sector2_ratio",
+  "sector3_ratio",
+  "power_sensitivity_score",
+  "full_throttle_pct",
+  "avg_corner_speed_kmh",
+  "elevation_change_m",
+  "num_corners",
+  "track_temp",
+  "air_temp",
+  "humidity",
+  "driver_skill_score",
+  "speed_trap"
+]

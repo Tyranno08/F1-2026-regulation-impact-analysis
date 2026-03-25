@@ -1,0 +1,43 @@
+{
+  "model_name": "LightGBM",
+  "trained_at": "2026-03-25T18:22:42.141832",
+  "feature_columns": [
+    "circuit",
+    "total_car_weight",
+    "fuel_weight_estimate",
+    "lap_number",
+    "effective_tire_grip",
+    "tire_life",
+    "compound",
+    "sector1_ratio",
+    "sector2_ratio",
+    "sector3_ratio",
+    "power_sensitivity_score",
+    "full_throttle_pct",
+    "avg_corner_speed_kmh",
+    "elevation_change_m",
+    "num_corners",
+    "track_temp",
+    "air_temp",
+    "humidity",
+    "driver_skill_score",
+    "speed_trap"
+  ],
+  "target_column": "lap_time_delta_from_session_median",
+  "training_seasons": [
+    2023,
+    2024
+  ],
+  "test_season": 2025,
+  "validation_season": 2026,
+  "metrics": {
+    "model_name": "LightGBM",
+    "rmse": 0.8993,
+    "mae": 0.6792,
+    "r2": 0.5125,
+    "mape": 95.7514,
+    "n_test_samples": 9189
+  },
+  "validation_metrics": null,
+  "note": "This is the best performing model selected from the training pipeline. Load this file for simulation and dashboard use."
+}

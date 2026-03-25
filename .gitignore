@@ -255,3 +255,10 @@ data/processed/*
 # Exception — commit quality reports and metadata
 !data/processed/.gitkeep
 !data/processed/cleaning_report_*.txt
+
+# Model artifacts — large files not committed
+models/*.joblib
+models/*.csv
+
+# Exception — commit metadata and feature list
+!models/*.json

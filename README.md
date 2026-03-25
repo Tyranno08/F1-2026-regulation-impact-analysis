@@ -78,12 +78,12 @@ python src/pipelines/seed_circuit_metadata.py
 ## Project Status
 
 - [x] Phase 1 — Repository & Infrastructure Setup
-- [x] Phase 2 — Data Ingestion Pipeline (2023, 2024, 2025 training data)
-- [x] Phase 2B — 2026 Race Data Ingestion (Australia, China)
+- [x] Phase 2 — Data Ingestion Pipeline
+- [x] Phase 2B — 2026 Race Data Ingestion
 - [x] Phase 3 — Data Cleaning Pipeline
 - [x] Phase 4 — Feature Engineering
-- [ ] Phase 5 — Modeling Pipeline
-- [ ] Phase 6 — Model Explainability
+- [x] Phase 5 — Modeling Pipeline
+- [ ] Phase 6 — Model Explainability (SHAP)
 - [ ] Phase 7 — Experiment Tracking
 - [ ] Phase 8 — 2026 Simulation Engine
 - [ ] Phase 8B — Simulation Validation Against Real 2026 Data
