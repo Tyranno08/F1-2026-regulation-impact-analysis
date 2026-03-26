@@ -235,6 +235,9 @@ fastf1_cache/
 # MLflow runs
 mlruns/
 
+# Exception — commit the exported summary for dashboard use
+!models/mlflow_summary.json
+
 # OS files
 .DS_Store
 Thumbs.db

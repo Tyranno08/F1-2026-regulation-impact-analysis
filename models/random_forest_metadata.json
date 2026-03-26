@@ -1,6 +1,6 @@
 {
   "model_name": "Random Forest",
-  "trained_at": "2026-03-26T19:04:19.812858",
+  "trained_at": "2026-03-26T20:32:26.940885",
   "feature_columns": [
     "circuit",
     "total_car_weight",

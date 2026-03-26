@@ -1,6 +1,6 @@
 {
   "model_name": "XGBoost",
-  "trained_at": "2026-03-26T19:04:27.263087",
+  "trained_at": "2026-03-26T20:32:34.568269",
   "feature_columns": [
     "circuit",
     "total_car_weight",

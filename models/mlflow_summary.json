@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-03-26T20:36:50.843594",
+  "experiment_name": "f1_lap_time_prediction",
+  "total_runs": 3,
+  "best_model": {
+    "model_type": "LightGBM",
+    "rmse": 0.9197,
+    "mae": 0.6988,
+    "r2": 0.4902,
+    "cv_rmse_mean": 0.8578,
+    "cv_rmse_std": 0.1694,
+    "run_id": "67864b2d4d704126be4bf2cf3fc4c823"
+  },
+  "all_models": [
+    {
+      "model_type": "LightGBM",
+      "rmse": 0.9197,
+      "mae": 0.6988,
+      "r2": 0.4902,
+      "cv_rmse_mean": 0.8578,
+      "cv_rmse_std": 0.1694
+    },
+    {
+      "model_type": "XGBoost",
+      "rmse": 0.9397,
+      "mae": 0.7172,
+      "r2": 0.4677,
+      "cv_rmse_mean": 0.828,
+      "cv_rmse_std": 0.1687
+    },
+    {
+      "model_type": "Random Forest",
+      "rmse": 0.9407,
+      "mae": 0.7186,
+      "r2": 0.4666,
+      "cv_rmse_mean": 0.8684,
+      "cv_rmse_std": 0.1789
+    }
+  ]
+}

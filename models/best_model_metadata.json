@@ -1,6 +1,6 @@
 {
   "model_name": "LightGBM",
-  "trained_at": "2026-03-26T19:04:33.732590",
+  "trained_at": "2026-03-26T20:32:41.242697",
   "feature_columns": [
     "circuit",
     "total_car_weight",
