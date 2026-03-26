@@ -1,6 +1,6 @@
 {
   "model_name": "LightGBM",
-  "trained_at": "2026-03-25T18:22:42.141832",
+  "trained_at": "2026-03-26T19:04:33.732590",
   "feature_columns": [
     "circuit",
     "total_car_weight",
@@ -32,12 +32,19 @@
   "validation_season": 2026,
   "metrics": {
     "model_name": "LightGBM",
-    "rmse": 0.8993,
-    "mae": 0.6792,
-    "r2": 0.5125,
-    "mape": 95.7514,
+    "rmse": 0.9197,
+    "mae": 0.6988,
+    "r2": 0.4902,
+    "mape": 98.9911,
     "n_test_samples": 9189
   },
-  "validation_metrics": null,
+  "validation_metrics": {
+    "model_name": "LightGBM [Validation]",
+    "rmse": 1.5186,
+    "mae": 1.301,
+    "r2": -0.0211,
+    "mape": 185.3043,
+    "n_test_samples": 1636
+  },
   "note": "This is the best performing model selected from the training pipeline. Load this file for simulation and dashboard use."
 }

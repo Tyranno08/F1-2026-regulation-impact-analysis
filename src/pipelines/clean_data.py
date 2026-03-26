@@ -18,16 +18,25 @@ Cleaning steps applied in order:
     8.  Drop rain-dominated sessions (>50% wet/intermediate laps)
     9.  Remove individual wet and intermediate laps
     10. Remove statistical outliers (>2.5 sigma from session mean)
-    11. Compute fuel weight estimate
-    12. Compute lap_time_delta_from_session_median (dry-only reference)
-    13. Assign data_split label (train vs validation)
-    14. Write to Silver table
+    11. Remove drying-track transition laps
+    12. Compute fuel weight estimate
+    13. Compute lap_time_delta_from_session_median (dry-only reference)
+    14. Assign data_split label (train vs validation)
+    15. Write to Silver table
 
 Design principle:
     Every removal decision is logged with a count so the cleaning
     report shows exactly how many laps were removed at each step
     and why. This is called an audit trail and it is expected in
     any professional data pipeline.
+
+Safety principle:
+    After every major filtering step the pipeline checks whether
+    all rows have been removed. If so it logs a CRITICAL error and
+    stops immediately instead of crashing downstream. The statistical
+    outlier filter additionally protects individual sessions: if
+    removing outliers would empty a session, that session is kept
+    unfiltered and a warning is logged.
 
 Usage:
     python src/pipelines/clean_data.py
@@ -316,54 +325,31 @@ def remove_wet_weather_laps(
     audit: dict
 ) -> pd.DataFrame:
     """
-    Removes wet and intermediate laps, and drops sessions that were
-    predominantly wet.
+    Removes wet and intermediate laps, but does NOT drop entire
+    sessions anymore.
 
-    Two-stage process:
+    Rationale:
+        Earlier versions of the pipeline dropped entire sessions if
+        more than 50% of laps were wet/intermediate. While this was
+        conservative for dry-race modeling, it removed too much useful
+        dry-compound data from sessions like Australia 2025 and
+        Silverstone 2025.
 
-    Stage 1 — Drop rain-dominated sessions entirely.
-        If more than RAIN_SESSION_THRESHOLD (50%) of a session's laps
-        are on wet or intermediate tyres, the entire session is removed.
-        Reason: the remaining dry laps in such a session are not
-        representative of true dry race pace. They occur at the very
-        start or end of a race under heavily compromised conditions,
-        during VSC trains behind the safety car as conditions change,
-        or on a drying rubbered-in line that does not reflect normal
-        tyre behaviour. Keeping ~90 dry laps from an 83% wet race
-        introduces more bias than it removes.
-
-        Affected sessions identified from diagnostic queries:
-            2025 Australia  — 83% wet
-            2025 Silverstone — 67% wet
-
-    Stage 2 — Remove individual wet/intermediate laps from the
-        remaining partially-wet sessions.
-        Reason: wet weather physics (aquaplaning, standing water,
-        lower grip envelope) are entirely different from the dry
-        performance dynamics this model is designed to predict.
-        The 2026 regulation changes being simulated are about
-        downforce configuration, car weight, and power unit
-        characteristics — none of which change meaningfully in
-        wet conditions.
-
-        Affected sessions:
-            2023 Monaco       — 411 wet/int laps removed
-            2023 Interlagos   — 209 wet/int laps removed
-            2024 Silverstone  — 186 wet/int laps removed
+        The revised approach keeps all dry-compound laps and removes
+        only the wet/intermediate laps. This preserves circuit coverage
+        for modeling while still excluding wet-weather physics from
+        the training target.
 
     Args:
         df:    Input dataframe after safety car laps have been removed
         audit: Audit trail dictionary
 
     Returns:
-        Filtered dataframe with no wet/intermediate laps and no
-        rain-dominated sessions.
+        Filtered dataframe with wet/intermediate laps removed.
     """
     before = len(df)
 
-    # ----------------------------------------------------------
-    # Stage 1: Identify and drop rain-dominated sessions
-    # ----------------------------------------------------------
+    # Diagnostic only: log wet share by session
     session_wet_pct = (
         df.groupby(["season", "circuit"])
         .apply(lambda g: g["compound"].isin(WET_COMPOUNDS).mean())
@@ -371,56 +357,27 @@ def remove_wet_weather_laps(
         .rename(columns={0: "wet_pct"})
     )
 
-    rain_sessions = session_wet_pct[
+    high_wet_sessions = session_wet_pct[
         session_wet_pct["wet_pct"] > RAIN_SESSION_THRESHOLD
-    ][["season", "circuit"]].copy()
+    ]
 
-    rain_session_rows_removed = 0
-
-    if len(rain_sessions) > 0:
-        for _, row in rain_sessions.iterrows():
-            wet_pct_val = session_wet_pct[
-                (session_wet_pct["season"] == row["season"]) &
-                (session_wet_pct["circuit"] == row["circuit"])
-            ]["wet_pct"].values[0]
-
+    if len(high_wet_sessions) > 0:
+        logger.warning(
+            "Rain-dominated sessions detected, but entire-session "
+            "dropping is disabled. Keeping dry laps and removing only "
+            "wet/intermediate laps."
+        )
+        for _, row in high_wet_sessions.iterrows():
             logger.warning(
-                f"Dropping entire session {int(row['season'])} "
-                f"{row['circuit']} — rain-dominated "
-                f"({wet_pct_val*100:.0f}% wet/intermediate laps). "
-                f"Insufficient dry laps for reliable pace modelling."
+                f"  {int(row['season'])} {row['circuit']} — "
+                f"{row['wet_pct']*100:.0f}% wet/intermediate laps"
             )
 
-        # Build a boolean mask for all rows belonging to rain sessions
-        rain_keys = set(
-            zip(rain_sessions["season"], rain_sessions["circuit"])
-        )
-        rain_mask = df.apply(
-            lambda r: (r["season"], r["circuit"]) in rain_keys,
-            axis=1
-        )
-
-        rain_session_rows_removed = rain_mask.sum()
-        df = df[~rain_mask].copy()
-
-        logger.info(
-            f"Removed {rain_session_rows_removed} laps from "
-            f"{len(rain_sessions)} rain-dominated session(s): "
-            + ", ".join(
-                f"{int(r['season'])} {r['circuit']}"
-                for _, r in rain_sessions.iterrows()
-            )
-        )
-
-    # ----------------------------------------------------------
-    # Stage 2: Remove individual wet/intermediate laps from the
-    #          remaining partially-wet sessions
-    # ----------------------------------------------------------
+    # Remove individual wet/intermediate laps only
     wet_lap_mask = df["compound"].isin(WET_COMPOUNDS)
     individual_wet_laps = wet_lap_mask.sum()
 
     if individual_wet_laps > 0:
-        # Log which sessions still have wet laps
         wet_by_session = (
             df[wet_lap_mask]
             .groupby(["season", "circuit", "compound"])
@@ -436,11 +393,11 @@ def remove_wet_weather_laps(
         df = df[~wet_lap_mask].copy()
         logger.info(
             f"Removed {individual_wet_laps} individual "
-            f"wet/intermediate laps from partially-wet sessions"
+            f"wet/intermediate laps from mixed-condition sessions"
         )
 
     total_wet_removed = before - len(df)
-    audit["rain_dominated_sessions"] = rain_session_rows_removed
+    audit["rain_dominated_sessions"] = 0
     audit["wet_laps_removed"] = individual_wet_laps
     audit["total_wet_removed"] = total_wet_removed
 
@@ -465,6 +422,12 @@ def remove_statistical_outliers(
     race session independently. Laps beyond sigma_threshold standard
     deviations from the session mean are removed.
 
+    Per-session safeguard:
+        If removing outliers would empty an entire session, we keep
+        all laps for that session and log a warning. This prevents
+        silent data loss for sessions with unusual distributions
+        (e.g., very few laps remaining after wet removal).
+
     Critically:
     - This runs AFTER wet lap removal, so the distribution being
       analysed is dry-compound laps only. This is why we can use
@@ -482,29 +445,68 @@ def remove_statistical_outliers(
         Filtered dataframe.
     """
     before = len(df)
+    kept_sessions = []
+    total_removed = 0
+    fallback_sessions = 0
 
-    session_stats = df.groupby("race_id")["lap_time_seconds"].agg(
-        ["mean", "std"]
-    ).reset_index()
-    session_stats.columns = ["race_id", "session_mean", "session_std"]
+    for race_id, session_df in df.groupby("race_id"):
+        session_df = session_df.copy()
+        session_mean = session_df["lap_time_seconds"].mean()
+        session_std = session_df["lap_time_seconds"].std()
 
-    df = df.merge(session_stats, on="race_id", how="left")
+        # If std is NaN or zero (single-lap session), skip filtering
+        if pd.isna(session_std) or session_std == 0:
+            logger.warning(
+                f"  {race_id}: std is zero or NaN — "
+                f"skipping outlier filter for this session "
+                f"({len(session_df)} laps kept as-is)"
+            )
+            kept_sessions.append(session_df)
+            continue
 
-    df["is_outlier"] = (
-        np.abs(df["lap_time_seconds"] - df["session_mean"]) >
-        (sigma_threshold * df["session_std"])
-    )
+        inlier_mask = (
+            np.abs(session_df["lap_time_seconds"] - session_mean)
+            <= (sigma_threshold * session_std)
+        )
 
-    df = df[df["is_outlier"] == False].copy()
-    df = df.drop(columns=["session_mean", "session_std", "is_outlier"])
+        filtered = session_df[inlier_mask]
+
+        if filtered.empty:
+            # SAFEGUARD: keep entire session if filter would empty it
+            logger.warning(
+                f"  {race_id}: outlier filter would remove ALL "
+                f"{len(session_df)} laps — keeping entire session. "
+                f"Check cleaning thresholds for this race."
+            )
+            kept_sessions.append(session_df)
+            fallback_sessions += 1
+        else:
+            removed_count = len(session_df) - len(filtered)
+            if removed_count > 0:
+                logger.debug(
+                    f"  {race_id}: removed {removed_count} outlier laps "
+                    f"(kept {len(filtered)}/{len(session_df)})"
+                )
+            total_removed += removed_count
+            kept_sessions.append(filtered)
+
+    df = pd.concat(kept_sessions, ignore_index=True)
 
     removed = before - len(df)
     audit["statistical_outliers"] = removed
+
     logger.info(
         f"Removed {removed} laps as statistical outliers "
         f"(>{sigma_threshold} sigma from session mean)"
     )
+    if fallback_sessions > 0:
+        logger.warning(
+            f"  {fallback_sessions} session(s) triggered the "
+            f"empty-session safeguard and were kept unfiltered"
+        )
+
     return df
+
 
 def remove_transition_laps(
     df: pd.DataFrame,
@@ -737,30 +739,33 @@ def compute_lap_delta(df: pd.DataFrame) -> pd.DataFrame:
 
 def assign_data_split(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     """
-    Assigns each row to either the train or validation split.
+    Assigns temporal data splits for modeling.
 
-    Training data:   seasons 2023, 2024, 2025
-    Validation data: season 2026 (real races for simulation check)
+    Split design:
+        Train:      2023, 2024
+        Test:       2025
+        Validation: 2026
 
-    This column is used by every downstream script to ensure
-    2026 data never leaks into model training.
+    This prevents leakage and preserves a true temporal holdout.
+
+    Args:
+        df:     Clean dataframe
+        config: Project config dict
+
+    Returns:
+        DataFrame with data_split column assigned.
     """
-    training_seasons = config.get("training_seasons", [2023, 2024, 2025])
+    training_seasons = config.get("training_seasons", [2023, 2024])
+    test_seasons = config.get("test_seasons", [2025])
     validation_seasons = config.get("validation_seasons", [2026])
 
     df["data_split"] = "train"
-    df.loc[
-        df["season"].isin(validation_seasons),
-        "data_split"
-    ] = "validation"
+    df.loc[df["season"].isin(test_seasons), "data_split"] = "test"
+    df.loc[df["season"].isin(validation_seasons), "data_split"] = "validation"
 
-    train_count = (df["data_split"] == "train").sum()
-    val_count = (df["data_split"] == "validation").sum()
+    split_counts = df["data_split"].value_counts().to_dict()
+    logger.info(f"Data split assigned: {split_counts}")
 
-    logger.info(
-        f"Data split assigned: {train_count} training laps, "
-        f"{val_count} validation laps"
-    )
     return df
 
 
@@ -806,7 +811,7 @@ def generate_data_quality_report(
         ("rain_dominated_sessions",  "Rain-dominated sessions (>50% wet) — entire session dropped"),
         ("wet_laps_removed",         "Individual wet/intermediate laps from partial-rain sessions"),
         ("statistical_outliers",     f"Statistical outliers (>{OUTLIER_SIGMA_THRESHOLD} sigma)"),
-        ("transition_laps",          "Drying-track transition laps (dry compound, >8s above median)"),  # NEW
+        ("transition_laps",          "Drying-track transition laps (dry compound, >8s above median)"),
     ]
 
     for key, description in removal_steps:
@@ -1065,6 +1070,35 @@ def write_clean_data_to_silver(
 
 
 # ============================================================
+# Pipeline Safety Guard
+# ============================================================
+
+def _check_empty(df: pd.DataFrame, step_name: str) -> bool:
+    """
+    Returns True (and logs a critical error) if the dataframe is
+    empty after a cleaning step.  The caller should return early
+    to avoid downstream crashes on operations like .median() or
+    .groupby() on an empty frame.
+
+    Args:
+        df:        The dataframe to check.
+        step_name: Human-readable name of the cleaning step that
+                   just ran, used in the log message.
+
+    Returns:
+        True if the dataframe is empty, False otherwise.
+    """
+    if df.empty:
+        logger.critical(
+            f"ALL rows removed after '{step_name}'. "
+            f"Pipeline cannot continue. "
+            f"Check cleaning thresholds or input data."
+        )
+        return True
+    return False
+
+
+# ============================================================
 # Main Cleaning Pipeline Orchestrator
 # ============================================================
 
@@ -1077,20 +1111,26 @@ def run_cleaning_pipeline(
     Orchestrates the full Bronze to Silver cleaning pipeline.
 
     Cleaning order:
-        1. Load raw Bronze data
-        2. Parse time strings to float seconds
-        3. Remove null lap times
-        4. Remove formation / lap-zero laps
-        5. Remove pit stop laps
-        6. Remove safety car and VSC laps
-        7. Remove unknown drivers
-        8. Remove physically impossible times
-        9. Remove rain-dominated sessions and wet/int laps  ← NEW
-        10. Remove statistical outliers (2.5 sigma)         ← TIGHTENED
+        1.  Load raw Bronze data
+        2.  Parse time strings to float seconds
+        3.  Remove null lap times
+        4.  Remove formation / lap-zero laps
+        5.  Remove pit stop laps
+        6.  Remove safety car and VSC laps
+        7.  Remove unknown drivers
+        8.  Remove physically impossible times
+        9.  Remove wet/intermediate laps                     ← REVISED
+        10. Remove statistical outliers (2.5 sigma, per-session safe)
+        10B. Remove drying-track transition laps
         11. Compute fuel weight estimate
-        12. Compute lap delta from dry-only session median  ← FIXED
+        12. Compute lap delta from dry-only session median
         13. Assign train/validation split
-        14. Write to Silver table
+        14. Generate quality report
+        15. Write to Silver table
+
+    After every filtering step, the pipeline checks whether any
+    rows remain. If all rows have been removed, it logs a CRITICAL
+    error, closes the database connection, and exits cleanly.
 
     Args:
         seasons:  Optional list of seasons to clean.
@@ -1119,6 +1159,7 @@ def run_cleaning_pipeline(
             "No data loaded from Bronze table. "
             "Have you run the ingestion pipeline?"
         )
+        conn.close()
         return
 
     df_raw = df.copy()
@@ -1129,31 +1170,70 @@ def run_cleaning_pipeline(
     # ---- Step 2: Parse time strings to seconds ----
     df = parse_all_time_columns(df)
 
-    # ---- Step 3–8: Apply standard cleaning filters ----
+    # ---- Step 3: Remove null lap times ----
     df = remove_null_lap_times(df, audit)
-    df = remove_formation_and_lap_zero(df, audit)
-    df = remove_pit_laps(df, audit)
-    df = remove_safety_car_laps(df, audit)
-    df = remove_unknown_drivers(df, audit)
-    df = remove_physically_impossible_times(df, audit)
+    if _check_empty(df, "null lap time removal"):
+        conn.close()
+        return
 
-    # ---- Step 9: Remove wet weather laps and rain sessions ----
+    # ---- Step 4: Remove formation / lap-zero laps ----
+    df = remove_formation_and_lap_zero(df, audit)
+    if _check_empty(df, "formation lap removal"):
+        conn.close()
+        return
+
+    # ---- Step 5: Remove pit stop laps ----
+    df = remove_pit_laps(df, audit)
+    if _check_empty(df, "pit lap removal"):
+        conn.close()
+        return
+
+    # ---- Step 6: Remove safety car and VSC laps ----
+    df = remove_safety_car_laps(df, audit)
+    if _check_empty(df, "safety car removal"):
+        conn.close()
+        return
+
+    # ---- Step 7: Remove unknown drivers ----
+    df = remove_unknown_drivers(df, audit)
+    if _check_empty(df, "unknown driver removal"):
+        conn.close()
+        return
+
+    # ---- Step 8: Remove physically impossible times ----
+    df = remove_physically_impossible_times(df, audit)
+    if _check_empty(df, "physically impossible time removal"):
+        conn.close()
+        return
+
+    # ---- Step 9: Remove wet weather laps ----
     # This must run BEFORE the outlier filter so that wet laps
     # do not distort the per-session mean and std used for outlier
     # detection. It must also run BEFORE compute_lap_delta so that
     # the session median reference is computed from dry laps only.
     df = remove_wet_weather_laps(df, audit)
+    if _check_empty(df, "wet weather removal"):
+        conn.close()
+        return
 
     # ---- Step 10: Statistical outlier removal ----
-    # Runs on dry-only data with tighter 2.5 sigma threshold
+    # Runs on dry-only data with tighter 2.5 sigma threshold.
+    # Per-session safeguard: if removing outliers would empty a
+    # session, that session is kept unfiltered.
     df = remove_statistical_outliers(
         df, audit, sigma_threshold=OUTLIER_SIGMA_THRESHOLD
     )
+    if _check_empty(df, "statistical outlier removal"):
+        conn.close()
+        return
 
     # ---- Step 10B: Remove drying-track transition laps ----
     # Catches dry-compound laps on a damp track that survived all
     # previous filters. Must run BEFORE compute_lap_delta.
     df = remove_transition_laps(df, audit, max_delta_seconds=8.0)
+    if _check_empty(df, "transition lap removal"):
+        conn.close()
+        return
 
     # ---- Step 11–13: Compute derived fields ----
     df = compute_fuel_weight_estimate(df, config)

@@ -248,13 +248,17 @@ Thumbs.db
 logs/
 *.log
 
-# Data files — raw and processed data not committed
+# Data files
 data/raw/*
 data/processed/*
 
-# Exception — commit quality reports and metadata
+# Exceptions — commit reports, plots, and feature summaries
 !data/processed/.gitkeep
 !data/processed/cleaning_report_*.txt
+!data/processed/feature_report_*.txt
+!data/processed/shap_interpretation_*.txt
+!data/processed/plots/
+!data/processed/plots/*.png
 
 # Model artifacts — large files not committed
 models/*.joblib

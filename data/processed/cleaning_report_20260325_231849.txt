@@ -1,0 +1,48 @@
+
+======================================================================
+DATA CLEANING PIPELINE — QUALITY REPORT
+Generated: 2026-03-25 23:18:49
+======================================================================
+
+REMOVAL AUDIT TRAIL
+----------------------------------------------------------------------
+  Null or unparseable lap times                                 86 laps  (9.3%)
+  Formation laps and lap zero                                    0 laps  (0.0%)
+  Pit stop laps (in-lap + out-lap)                              75 laps  (8.1%)
+  Safety car and VSC laps                                      198 laps  (21.4%)
+  Unknown driver identifier                                      0 laps  (0.0%)
+  Physically impossible times                                    0 laps  (0.0%)
+  Rain-dominated sessions (>50% wet) — entire session dropped     0 laps  (0.0%)
+  Individual wet/intermediate laps from partial-rain sessions   468 laps  (50.5%)
+  Statistical outliers (>2.5 sigma)                              0 laps  (0.0%)
+  Drying-track transition laps (dry compound, >8s above median)     2 laps  (0.2%)
+
+----------------------------------------------------------------------
+  Total raw laps                                               927
+  Total removed                                                829 (89.4%)
+  Total clean laps retained                                     98 (10.6%)
+
+CLEAN DATASET COMPOSITION
+----------------------------------------------------------------------
+  By Season:
+    2025      98 laps  [train]
+
+  By Circuit:
+    Australia                     98 laps
+
+  By Compound:
+    MEDIUM              74 laps  (75.5%)
+    HARD                24 laps  (24.5%)
+
+  Lap Time Delta (target variable):
+    Mean:   -0.9523s
+    Median: 0.0000s
+    Std:    4.3792s
+    Min:    -9.6630s
+    Max:    8.4350s
+
+  Weather Coverage:
+    Track temp available:     98 laps (100.0%)
+    Air temp available:       98 laps (100.0%)
+
+======================================================================

@@ -1,6 +1,6 @@
 {
   "model_name": "Random Forest",
-  "trained_at": "2026-03-25T18:22:30.470353",
+  "trained_at": "2026-03-26T19:04:19.812858",
   "feature_columns": [
     "circuit",
     "total_car_weight",
@@ -31,10 +31,10 @@
   "test_season": 2025,
   "metrics": {
     "model_name": "Random Forest",
-    "rmse": 0.9394,
-    "mae": 0.7208,
-    "r2": 0.4681,
-    "mape": 101.1809,
+    "rmse": 0.9407,
+    "mae": 0.7186,
+    "r2": 0.4666,
+    "mape": 100.303,
     "n_test_samples": 9189
   }
 }

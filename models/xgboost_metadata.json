@@ -1,6 +1,6 @@
 {
   "model_name": "XGBoost",
-  "trained_at": "2026-03-25T18:22:36.497101",
+  "trained_at": "2026-03-26T19:04:27.263087",
   "feature_columns": [
     "circuit",
     "total_car_weight",
@@ -31,10 +31,10 @@
   "test_season": 2025,
   "metrics": {
     "model_name": "XGBoost",
-    "rmse": 0.9044,
-    "mae": 0.689,
-    "r2": 0.507,
-    "mape": 96.1548,
+    "rmse": 0.9397,
+    "mae": 0.7172,
+    "r2": 0.4677,
+    "mape": 101.9237,
     "n_test_samples": 9189
   }
 }

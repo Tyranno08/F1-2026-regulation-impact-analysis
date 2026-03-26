@@ -74,6 +74,28 @@ python src/pipelines/seed_circuit_metadata.py
 ```
 
 ---
+## Model Explainability
+
+SHAP (SHapley Additive exPlanations) values were computed on the
+2025 holdout test set to understand what the model learned.
+
+### Key Findings
+
+- **Total Car Weight** is the dominant physical predictor,
+  confirming that fuel load effects are captured correctly
+- **Effective Tire Grip** shows the expected negative relationship:
+  higher grip index produces faster laps relative to session median
+- **Driver Skill Score** confirms that driver quality is being
+  captured meaningfully through target encoding
+- **Circuit Power Sensitivity** shows strong circuit-level
+  differentiation that directly informs the 2026 simulation
+
+### SHAP Visualizations
+
+![SHAP Summary](data/processed/plots/shap_summary_bar.png)
+![SHAP Beeswarm](data/processed/plots/shap_beeswarm.png)
+![Circuit Heatmap](data/processed/plots/shap_circuit_heatmap.png)
+
 
 ## Project Status
 
@@ -83,7 +105,7 @@ python src/pipelines/seed_circuit_metadata.py
 - [x] Phase 3 — Data Cleaning Pipeline
 - [x] Phase 4 — Feature Engineering
 - [x] Phase 5 — Modeling Pipeline
-- [ ] Phase 6 — Model Explainability (SHAP)
+- [x] Phase 6 — Model Explainability (SHAP)
 - [ ] Phase 7 — Experiment Tracking
 - [ ] Phase 8 — 2026 Simulation Engine
 - [ ] Phase 8B — Simulation Validation Against Real 2026 Data

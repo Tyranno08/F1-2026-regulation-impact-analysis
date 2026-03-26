@@ -1,0 +1,49 @@
+
+======================================================================
+DATA CLEANING PIPELINE — QUALITY REPORT
+Generated: 2026-03-25 23:19:18
+======================================================================
+
+REMOVAL AUDIT TRAIL
+----------------------------------------------------------------------
+  Null or unparseable lap times                                110 laps  (13.3%)
+  Formation laps and lap zero                                    0 laps  (0.0%)
+  Pit stop laps (in-lap + out-lap)                              67 laps  (8.1%)
+  Safety car and VSC laps                                      153 laps  (18.5%)
+  Unknown driver identifier                                      0 laps  (0.0%)
+  Physically impossible times                                    0 laps  (0.0%)
+  Rain-dominated sessions (>50% wet) — entire session dropped     0 laps  (0.0%)
+  Individual wet/intermediate laps from partial-rain sessions   334 laps  (40.4%)
+  Statistical outliers (>2.5 sigma)                              6 laps  (0.7%)
+  Drying-track transition laps (dry compound, >8s above median)    18 laps  (2.2%)
+
+----------------------------------------------------------------------
+  Total raw laps                                               826
+  Total removed                                                688 (83.3%)
+  Total clean laps retained                                    138 (16.7%)
+
+CLEAN DATASET COMPOSITION
+----------------------------------------------------------------------
+  By Season:
+    2025     138 laps  [train]
+
+  By Circuit:
+    Silverstone                  138 laps
+
+  By Compound:
+    MEDIUM              99 laps  (71.7%)
+    SOFT                29 laps  (21.0%)
+    HARD                10 laps  (7.2%)
+
+  Lap Time Delta (target variable):
+    Mean:   0.7490s
+    Median: -0.0000s
+    Std:    2.2309s
+    Min:    -2.3320s
+    Max:    7.8100s
+
+  Weather Coverage:
+    Track temp available:    138 laps (100.0%)
+    Air temp available:      138 laps (100.0%)
+
+======================================================================

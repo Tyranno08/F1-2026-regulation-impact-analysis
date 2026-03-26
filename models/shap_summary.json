@@ -1,0 +1,111 @@
+{
+  "generated_at": "2026-03-26T19:14:18.582362",
+  "n_samples": 2997,
+  "n_features": 32,
+  "global_feature_importance": {
+    "Total Car Weight (kg)": 0.419,
+    "Driver Skill Score": 0.341746,
+    "Fuel Weight Estimate (kg)": 0.253987,
+    "Tire Age (laps)": 0.158999,
+    "Sector 1 Time Ratio": 0.106617,
+    "Effective Tire Grip Index": 0.079241,
+    "Sector 2 Time Ratio": 0.067407,
+    "Track Temperature (\u00b0C)": 0.062446,
+    "Humidity (%)": 0.055899,
+    "Lap Number": 0.049105,
+    "Sector 3 Time Ratio": 0.047718,
+    "Number of Corners": 0.040843,
+    "Speed Trap (km/h)": 0.035623,
+    "Air Temperature (\u00b0C)": 0.029879,
+    "Full Throttle Percentage": 0.029576,
+    "Circuit Power Sensitivity": 0.017252,
+    "Elevation Change (m)": 0.016274,
+    "compound_SOFT": 0.013435,
+    "circuit_Jeddah": 0.005787,
+    "compound_HARD": 0.00538,
+    "compound_MEDIUM": 0.005133,
+    "circuit_China": 0.003745,
+    "circuit_Silverstone": 0.002158,
+    "Avg Corner Speed (km/h)": 0.00184,
+    "circuit_Australia": 5.3e-05,
+    "circuit_Bahrain": 0.0,
+    "circuit_Hungaroring": 0.0,
+    "circuit_Interlagos": 0.0,
+    "circuit_Monaco": 0.0,
+    "circuit_Monza": 0.0,
+    "circuit_Spa": 0.0,
+    "circuit_Suzuka": 0.0
+  },
+  "top_5_features": [
+    "Total Car Weight (kg)",
+    "Driver Skill Score",
+    "Fuel Weight Estimate (kg)",
+    "Tire Age (laps)",
+    "Sector 1 Time Ratio"
+  ],
+  "circuit_shap_means": {
+    "Bahrain": {
+      "Total Car Weight (kg)": 0.043221,
+      "Fuel Weight Estimate (kg)": 0.023593,
+      "Circuit Power Sensitivity": 0.015959,
+      "Effective Tire Grip Index": -0.002345,
+      "Full Throttle Percentage": 0.015097
+    },
+    "China": {
+      "Total Car Weight (kg)": 0.093421,
+      "Fuel Weight Estimate (kg)": 0.05043,
+      "Circuit Power Sensitivity": 0.011789,
+      "Effective Tire Grip Index": -0.017191,
+      "Full Throttle Percentage": 0.029858
+    },
+    "Hungaroring": {
+      "Total Car Weight (kg)": -0.102394,
+      "Fuel Weight Estimate (kg)": -0.057521,
+      "Circuit Power Sensitivity": 0.017737,
+      "Effective Tire Grip Index": -0.002862,
+      "Full Throttle Percentage": 0.03394
+    },
+    "Interlagos": {
+      "Total Car Weight (kg)": -0.058571,
+      "Fuel Weight Estimate (kg)": -0.036217,
+      "Circuit Power Sensitivity": 0.018098,
+      "Effective Tire Grip Index": 0.013077,
+      "Full Throttle Percentage": 0.035791
+    },
+    "Jeddah": {
+      "Total Car Weight (kg)": 0.101717,
+      "Fuel Weight Estimate (kg)": 0.049808,
+      "Circuit Power Sensitivity": -0.030283,
+      "Effective Tire Grip Index": -0.013727,
+      "Full Throttle Percentage": -0.04794
+    },
+    "Monaco": {
+      "Total Car Weight (kg)": -0.182495,
+      "Fuel Weight Estimate (kg)": -0.103172,
+      "Circuit Power Sensitivity": 0.003124,
+      "Effective Tire Grip Index": 0.016853,
+      "Full Throttle Percentage": 0.001897
+    },
+    "Monza": {
+      "Total Car Weight (kg)": 0.087734,
+      "Fuel Weight Estimate (kg)": 0.045651,
+      "Circuit Power Sensitivity": -0.02833,
+      "Effective Tire Grip Index": 0.010598,
+      "Full Throttle Percentage": -0.051285
+    },
+    "Spa": {
+      "Total Car Weight (kg)": 0.017863,
+      "Fuel Weight Estimate (kg)": 0.01142,
+      "Circuit Power Sensitivity": -0.022584,
+      "Effective Tire Grip Index": 0.007497,
+      "Full Throttle Percentage": -0.022525
+    },
+    "Suzuka": {
+      "Total Car Weight (kg)": 0.078616,
+      "Fuel Weight Estimate (kg)": 0.033492,
+      "Circuit Power Sensitivity": 0.002328,
+      "Effective Tire Grip Index": -0.010847,
+      "Full Throttle Percentage": -0.024522
+    }
+  }
+}

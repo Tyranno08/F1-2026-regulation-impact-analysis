@@ -1,0 +1,91 @@
+
+======================================================================
+SHAP EXPLAINABILITY — MODEL INTERPRETATION REPORT
+Generated: 2026-03-26 19:14:18
+======================================================================
+
+TOP FEATURE INFLUENCES
+----------------------------------------------------------------------
+
+1. Total Car Weight (kg)
+   Mean |SHAP|: 0.4190s
+   Direction:   On average increases lap delta (makes laps slower relative to session median)
+
+2. Driver Skill Score
+   Mean |SHAP|: 0.3417s
+   Direction:   On average decreases lap delta
+
+3. Fuel Weight Estimate (kg)
+   Mean |SHAP|: 0.2540s
+   Direction:   On average increases lap delta
+
+FULL FEATURE RANKING
+----------------------------------------------------------------------
+  Rank   Feature                                        Mean |SHAP|    Direction
+  ---------------------------------------------------------------------------
+  1      Total Car Weight (kg)                               0.4190s     ↑ slower
+  2      Driver Skill Score                                  0.3417s     ↓ faster
+  3      Fuel Weight Estimate (kg)                           0.2540s     ↑ slower
+  4      Tire Age (laps)                                     0.1590s     ↓ faster
+  5      Sector 1 Time Ratio                                 0.1066s     ↑ slower
+  6      Effective Tire Grip Index                           0.0792s     ↑ slower
+  7      Sector 2 Time Ratio                                 0.0674s     ↓ faster
+  8      Track Temperature (°C)                              0.0624s     ↑ slower
+  9      Humidity (%)                                        0.0559s     ↑ slower
+  10     Lap Number                                          0.0491s     ↓ faster
+  11     Sector 3 Time Ratio                                 0.0477s     ↑ slower
+  12     Number of Corners                                   0.0408s     ↓ faster
+  13     Speed Trap (km/h)                                   0.0356s     ↑ slower
+  14     Air Temperature (°C)                                0.0299s     ↑ slower
+  15     Full Throttle Percentage                            0.0296s     ↓ faster
+  16     Circuit Power Sensitivity                           0.0173s     ↓ faster
+  17     Elevation Change (m)                                0.0163s     ↓ faster
+  18     compound_SOFT                                       0.0134s     ↓ faster
+  19     circuit_Jeddah                                      0.0058s     ↓ faster
+  20     compound_HARD                                       0.0054s     ↑ slower
+  21     compound_MEDIUM                                     0.0051s     ↑ slower
+  22     circuit_China                                       0.0037s     ↓ faster
+  23     circuit_Silverstone                                 0.0022s     ↑ slower
+  24     Avg Corner Speed (km/h)                             0.0018s     ↓ faster
+  25     circuit_Australia                                   0.0001s     ↓ faster
+  26     circuit_Monza                                       0.0000s     ↓ faster
+  27     circuit_Spa                                         0.0000s     ↓ faster
+  28     circuit_Bahrain                                     0.0000s     ↓ faster
+  29     circuit_Monaco                                      0.0000s     ↓ faster
+  30     circuit_Interlagos                                  0.0000s     ↓ faster
+  31     circuit_Hungaroring                                 0.0000s     ↓ faster
+  32     circuit_Suzuka                                      0.0000s     ↓ faster
+
+CIRCUIT-LEVEL INSIGHTS
+----------------------------------------------------------------------
+
+  Circuit power sensitivity SHAP contribution (positive = engine matters more here):
+  Interlagos           +0.0181s  
+  Hungaroring          +0.0177s  
+  Bahrain              +0.0160s  
+  China                +0.0118s  
+  Monaco               +0.0031s  
+  Suzuka               +0.0023s  
+  Spa                  -0.0226s  █
+  Monza                -0.0283s  █
+  Jeddah               -0.0303s  █
+
+SIMULATION IMPLICATIONS
+----------------------------------------------------------------------
+
+Based on SHAP analysis, the 2026 regulation changes will
+affect circuits differently because:
+
+  Weight reduction (-30kg):
+    total_car_weight has mean |SHAP| of 0.4190s
+    Circuits with longer straights and higher average
+    speeds benefit more from weight reduction.
+
+  Engine power change (50% electric / 50% combustion):
+    power_sensitivity_score drives this effect.
+    High-power circuits (Monza, Spa) feel the engine
+    rule change most strongly.
+    Low-power circuits (Monaco, Hungaroring) benefit
+    from the electric torque advantage in slow corners.
+
+======================================================================

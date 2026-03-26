@@ -9,9 +9,9 @@ evaluates each model rigorously, and saves the best model artifact
 for use in the simulation and dashboard phases.
 
 Models trained:
-    1. Linear Regression     — interpretable baseline
-    2. Random Forest         — ensemble, captures non-linearities
-    3. XGBoost               — gradient boosting, typically best performer
+    1. Random Forest         — ensemble, captures non-linearities
+    2. XGBoost               — gradient boosting, typically best performer
+    3. LightGBM              — fast gradient boosting, often competitive
 
 Splitting strategy:
     Train:      2023 + 2024 seasons
@@ -20,6 +20,11 @@ Splitting strategy:
 
 This temporal split is critical. Random splitting would produce
 overoptimistic scores because laps from the same race are correlated.
+
+Cross-validation uses GroupKFold by race_id so that laps from the
+same session never appear in both the CV training and validation
+folds. This prevents information leakage from correlated within-race
+lap times and produces more realistic CV estimates.
 
 Usage:
     python src/models/train_model.py
@@ -41,17 +46,16 @@ import numpy as np
 import mlflow
 import mlflow.sklearn
 
-from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import (
     mean_squared_error,
     mean_absolute_error,
     r2_score
 )
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import cross_val_score, GroupKFold
 
 import xgboost as xgb
 import lightgbm as lgb
@@ -80,6 +84,7 @@ MODELS_DIR = os.path.join(
 
 # The features the model will use as inputs
 # Order matters here — keep this consistent across all scripts
+
 FEATURE_COLUMNS = [
     "circuit",
 
@@ -88,7 +93,7 @@ FEATURE_COLUMNS = [
     "fuel_weight_estimate",
 
     # Race position proxy
-    "lap_number",               # NEW — later laps = less traffic
+    "lap_number",
 
     # Tire features
     "effective_tire_grip",
@@ -121,18 +126,6 @@ FEATURE_COLUMNS = [
 
 TARGET_COLUMN = "lap_time_delta_from_session_median"
 
-CIRCUIT_ORDER = [[
-    "Monaco", "Hungaroring", "Singapore", "Australia",
-    "China", "Bahrain", "Suzuka", "Interlagos",
-    "Silverstone", "Spa", "Jeddah", "Monza"
-]]
-
-# Compound ordinal encoding order
-# Soft > Medium > Hard > Intermediate > Wet in terms of grip
-COMPOUND_ORDER = [
-    ["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET", "UNKNOWN"]
-]
-
 
 # ============================================================
 # Data Loading
@@ -153,10 +146,6 @@ def load_gold_data(engine) -> pd.DataFrame:
         Gold dataset as a pandas DataFrame.
     """
     logger.info("Loading Gold dataset from MySQL...")
-
-    # Build feature columns list excluding 'circuit' since it is
-    # already selected as a metadata column above.
-    # Including it twice causes duplicate column errors in pandas.
 
     # These columns are already selected as metadata — don't duplicate
     already_selected = {"circuit", "lap_number"}
@@ -185,7 +174,7 @@ def load_gold_data(engine) -> pd.DataFrame:
     logger.info(
         f"Loaded {len(df)} Gold rows: "
         f"{df['season'].nunique()} seasons, "
-        f"{df['circuit'].nunique().max() if hasattr(df['circuit'].nunique(), 'max') else df['circuit'].nunique()} circuits, "
+        f"{df['circuit'].nunique()} circuits, "
         f"{df['driver'].nunique()} drivers"
     )
 
@@ -233,7 +222,7 @@ def prepare_features(df: pd.DataFrame) -> tuple:
         f"Test: {len(test_df)}, "
         f"Validation: {len(val_df)}"
     )
-    
+
     # Columns that are categorical — handle separately, never median
     CATEGORICAL_FEATURES = {"compound", "circuit"}
 
@@ -243,9 +232,6 @@ def prepare_features(df: pd.DataFrame) -> tuple:
     ]
 
     # Handle nulls in sector ratios using circuit-level medians
-    # Handle nulls in sector ratios
-    # These are NaN where sector data was unavailable
-    # We impute with the mean ratio for that circuit
     sector_cols = ["sector1_ratio", "sector2_ratio", "sector3_ratio"]
     for col in sector_cols:
         if train_df[col].isna().any():
@@ -325,98 +311,52 @@ def prepare_features(df: pd.DataFrame) -> tuple:
 # ============================================================
 # Preprocessing Pipeline Builder
 # ============================================================
-'''
-def build_linear_preprocessor() -> ColumnTransformer:
-    """
-    Preprocessor for Linear Regression.
-    Excludes circuit — ordinal encoding of circuit identity
-    creates linearly impossible coefficients for Linear Regression.
-    All numeric features are StandardScaled.
-    """
-    # Exclude both categorical features from linear model
-    numeric_features = [
-        f for f in FEATURE_COLUMNS
-        if f not in ("compound", "circuit")
-    ]
-
-    compound_encoder = Pipeline([
-        ("ordinal", OrdinalEncoder(
-            categories=COMPOUND_ORDER,
-            handle_unknown="use_encoded_value",
-            unknown_value=-1
-        )),
-        ("scaler", StandardScaler())
-    ])
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ("numeric", StandardScaler(), numeric_features),
-            ("compound", compound_encoder, ["compound"]),
-        ],
-        remainder="drop"
-    )
-    return preprocessor'''
-
 
 def build_tree_preprocessor() -> ColumnTransformer:
     """
     Preprocessor for tree-based models (RF, XGBoost, LightGBM).
-    Includes circuit as an ordinal encoded categorical.
-    Tree models are scale-invariant so StandardScaler is optional
-    but kept for consistency.
+
+    Tree models do not require feature scaling. We therefore:
+    - pass numeric features through unchanged
+    - one-hot encode compound
+    - one-hot encode circuit
+
+    This avoids imposing artificial ordinal relationships on
+    categorical variables like circuit identity. While circuit
+    metadata features (power_sensitivity_score, full_throttle_pct,
+    etc.) already capture much of the circuit character, one-hot
+    encoding the circuit name allows the model to learn any
+    residual circuit-specific effects not captured by those
+    engineered features.
+
+    Returns:
+        ColumnTransformer with passthrough numerics and
+        one-hot encoded categoricals.
     """
     numeric_features = [
         f for f in FEATURE_COLUMNS
         if f not in ("compound", "circuit")
     ]
 
-    compound_encoder = OrdinalEncoder(
-        categories=COMPOUND_ORDER,
-        handle_unknown="use_encoded_value",
-        unknown_value=-1
-    )
-
-    circuit_encoder = OrdinalEncoder(
-        categories=CIRCUIT_ORDER,
-        handle_unknown="use_encoded_value",
-        unknown_value=-1
-    )
-
     preprocessor = ColumnTransformer(
         transformers=[
-            ("numeric", StandardScaler(), numeric_features),
-            ("compound", compound_encoder, ["compound"]),
-            ("circuit", circuit_encoder, ["circuit"]),
+            ("numeric", "passthrough", numeric_features),
+            ("compound", OneHotEncoder(
+                handle_unknown="ignore",
+                sparse_output=False
+            ), ["compound"]),
+            ("circuit", OneHotEncoder(
+                handle_unknown="ignore",
+                sparse_output=False
+            ), ["circuit"]),
         ],
         remainder="drop"
     )
     return preprocessor
 
-
 # ============================================================
 # Model Definitions
 # ============================================================
-'''
-def build_linear_regression_pipeline() -> Pipeline:
-    """
-    Builds the Linear Regression baseline pipeline.
-
-    Linear Regression is our sanity check model. If our complex
-    models cannot significantly beat it, something is wrong with
-    either the features or the problem formulation.
-
-    Linear Regression requires StandardScaler because it is
-    sensitive to feature scale differences.
-
-    Returns:
-        Sklearn Pipeline with preprocessor and Linear Regression.
-    """
-    pipeline = Pipeline([
-        ("preprocessor", build_linear_preprocessor()),  # no circuit
-        ("model", LinearRegression())
-    ])
-    return pipeline'''
-
 
 def build_random_forest_pipeline(config: dict) -> Pipeline:
     """
@@ -445,7 +385,7 @@ def build_random_forest_pipeline(config: dict) -> Pipeline:
     model_cfg = config.get("modeling", {})
     random_state = model_cfg.get("random_state", 42)
     pipeline = Pipeline([
-        ("preprocessor", build_tree_preprocessor()),    # with circuit
+        ("preprocessor", build_tree_preprocessor()),
         ("model", RandomForestRegressor(
             n_estimators=300,
             max_depth=12,
@@ -487,7 +427,7 @@ def build_xgboost_pipeline(config: dict) -> Pipeline:
     model_cfg = config.get("modeling", {})
     random_state = model_cfg.get("random_state", 42)
     pipeline = Pipeline([
-        ("preprocessor", build_tree_preprocessor()),    # with circuit
+        ("preprocessor", build_tree_preprocessor()),
         ("model", xgb.XGBRegressor(
             n_estimators=300,
             learning_rate=0.03,
@@ -524,7 +464,7 @@ def build_lightgbm_pipeline(config: dict) -> Pipeline:
     model_cfg = config.get("modeling", {})
     random_state = model_cfg.get("random_state", 42)
     pipeline = Pipeline([
-        ("preprocessor", build_tree_preprocessor()),    # with circuit
+        ("preprocessor", build_tree_preprocessor()),
         ("model", lgb.LGBMRegressor(
             n_estimators=300,
             learning_rate=0.03,
@@ -617,25 +557,30 @@ def cross_validate_model(
     pipeline: Pipeline,
     X_train: pd.DataFrame,
     y_train: pd.Series,
+    groups: pd.Series,
     model_name: str,
     config: dict
 ) -> dict:
     """
-    Performs K-fold cross validation on the training set.
+    Performs grouped cross validation on the training set.
 
-    Cross validation gives a more reliable estimate of model
-    performance than a single train/test split by averaging
-    results across K different subsets of the training data.
+    We use GroupKFold with race_id as the grouping variable so
+    laps from the same race/session never appear in both the CV
+    training and validation folds. This is more realistic than
+    shuffled KFold because lap rows within the same race are
+    highly correlated — a random split would leak information
+    about session-specific conditions (weather, track state,
+    safety car timing) and produce overly optimistic CV scores.
 
-    Note: We use standard KFold here rather than TimeSeriesSplit
-    because the temporal holdout is already handled by using
-    2025 as our test set. Within the 2023-2024 training data
-    random shuffling is acceptable.
+    The outer temporal split (2023-2024 train vs 2025 test) is
+    preserved separately. This grouped CV operates only within
+    the 2023-2024 training data.
 
     Args:
         pipeline:   Untrained sklearn Pipeline
         X_train:    Training feature matrix
         y_train:    Training target values
+        groups:     Series of race_id values for grouping
         model_name: Name string for logging
         config:     Project config dict
 
@@ -644,24 +589,21 @@ def cross_validate_model(
     """
     model_cfg = config.get("modeling", {})
     n_folds = model_cfg.get("cv_folds", 5)
-    random_state = model_cfg.get("random_state", 42)
 
     logger.info(
-        f"Running {n_folds}-fold cross validation for {model_name}..."
+        f"Running {n_folds}-fold grouped cross validation "
+        f"for {model_name}..."
     )
 
-    kf = KFold(
-        n_splits=n_folds,
-        shuffle=True,
-        random_state=random_state
-    )
+    gkf = GroupKFold(n_splits=n_folds)
 
     # neg_root_mean_squared_error returns negative RMSE
     cv_scores = cross_val_score(
         pipeline,
         X_train,
         y_train,
-        cv=kf,
+        cv=gkf,
+        groups=groups,
         scoring="neg_root_mean_squared_error",
         n_jobs=-1
     )
@@ -672,7 +614,9 @@ def cross_validate_model(
     cv_results = {
         "cv_rmse_mean": round(float(cv_rmse_scores.mean()), 4),
         "cv_rmse_std": round(float(cv_rmse_scores.std()), 4),
-        "cv_rmse_scores": [round(float(s), 4) for s in cv_rmse_scores]
+        "cv_rmse_scores": [
+            round(float(s), 4) for s in cv_rmse_scores
+        ]
     }
 
     logger.info(
@@ -787,7 +731,9 @@ def save_model_artifact(
         "metrics": metrics
     }
 
-    meta_filename = f"{model_name.lower().replace(' ', '_')}_metadata.json"
+    meta_filename = (
+        f"{model_name.lower().replace(' ', '_')}_metadata.json"
+    )
     meta_path = os.path.join(MODELS_DIR, meta_filename)
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=2)
@@ -810,9 +756,10 @@ def save_best_model(
     do not need to know which model type won.
 
     Args:
-        pipeline:        Best trained sklearn Pipeline
-        metrics:         Evaluation metrics dictionary
-        feature_columns: List of feature column names in order
+        pipeline:            Best trained sklearn Pipeline
+        metrics:             Evaluation metrics dictionary
+        feature_columns:     List of feature column names in order
+        validation_metrics:  Optional validation set metrics
 
     Returns:
         Path to the saved best model file.
@@ -924,7 +871,8 @@ def log_to_mlflow(
         # Log per-circuit metrics as CSV artifact
         circuit_csv_path = os.path.join(
             MODELS_DIR,
-            f"{model_name.lower().replace(' ', '_')}_circuit_metrics.csv"
+            f"{model_name.lower().replace(' ', '_')}"
+            f"_circuit_metrics.csv"
         )
         circuit_metrics.to_csv(circuit_csv_path, index=False)
         mlflow.log_artifact(circuit_csv_path)
@@ -990,12 +938,8 @@ def print_model_comparison(all_results: list[dict]) -> None:
         f"R2: {best_m['r2']:.4f})"
     )
 
-    # OLD
-    # target_rmse = 0.5
-    # NEW — realistic target given Monaco's inherent variance
     target_rmse = 0.90
-     
-    # Fix the missing space in the output message
+
     if best_m["rmse"] < target_rmse:
         print(
             f"✓ Target met: RMSE {best_m['rmse']:.4f}s "
@@ -1007,7 +951,8 @@ def print_model_comparison(all_results: list[dict]) -> None:
             f"exceeds the {target_rmse}s threshold. "
             f"Consider additional feature engineering. "
             f"Monaco accounts for ~0.15s of overall RMSE "
-            f"due to traffic dynamics not captured by car features."
+            f"due to traffic dynamics not captured by "
+            f"car features."
         )
     print()
 
@@ -1027,17 +972,18 @@ def run_training_pipeline(
         1. Load Gold dataset
         2. Prepare features and splits
         3. For each model:
-            a. Cross validate on training data
+            a. Grouped cross validate on training data
             b. Train on full training set
             c. Evaluate on 2025 test set
             d. Log to MLflow
             e. Save artifact
-        4. Select and save best model
-        5. Print comparison table
+        4. Evaluate best model on validation set (2026)
+        5. Select and save best model (with validation metrics)
+        6. Print comparison table
 
     Args:
         model_filter:    If provided, train only this model type.
-                         Options: 'linear', 'random_forest',
+                         Options: 'random_forest',
                                   'xgboost', 'lightgbm'
         save_artifacts:  If False, skip saving model files.
     """
@@ -1114,15 +1060,22 @@ def run_training_pipeline(
     all_results = []
 
     # ---- Step 4: Train and evaluate each model ----
-    for model_key, (model_name, pipeline) in model_definitions.items():
+    for model_key, (model_name, pipeline) in (
+        model_definitions.items()
+    ):
 
         logger.info(f"\n{'='*50}")
         logger.info(f"Training: {model_name}")
         logger.info(f"{'='*50}")
 
-        # Cross validate on training data
+        # Grouped cross validate on training data
         cv_results = cross_validate_model(
-            pipeline, X_train, y_train, model_name, config
+            pipeline,
+            X_train,
+            y_train,
+            meta_train["race_id"],
+            model_name,
+            config
         )
 
         # Train on full training set
@@ -1164,18 +1117,45 @@ def run_training_pipeline(
             "circuit_metrics": circuit_metrics
         })
 
-    # ---- Step 5: Select and save best model ----
+    # ---- Step 5: Select best model and evaluate on validation ----
+    val_metrics = None
+
     if all_results:
         best_result = min(
             all_results,
             key=lambda x: x["metrics"]["rmse"]
         )
 
+        # Evaluate best model on validation set if available
+        if (
+            X_val is not None
+            and y_val is not None
+            and len(X_val) > 0
+        ):
+            logger.info("=" * 60)
+            logger.info(
+                f"Evaluating best model on validation set (2026): "
+                f"{best_result['model_name']}"
+            )
+            val_metrics = evaluate_model(
+                best_result["pipeline"],
+                X_val,
+                y_val,
+                f"{best_result['model_name']} [Validation]"
+            )
+            logger.info(
+                f"Validation RMSE: {val_metrics['rmse']:.4f}s | "
+                f"MAE: {val_metrics['mae']:.4f}s | "
+                f"R2: {val_metrics['r2']:.4f}"
+            )
+
+        # Save best model with validation metrics included
         if save_artifacts:
             save_best_model(
                 best_result["pipeline"],
                 best_result["metrics"],
-                FEATURE_COLUMNS
+                FEATURE_COLUMNS,
+                validation_metrics=val_metrics
             )
 
         # Save feature column list for downstream use
@@ -1184,25 +1164,8 @@ def run_training_pipeline(
         )
         with open(feature_list_path, "w") as f:
             json.dump(FEATURE_COLUMNS, f, indent=2)
-        logger.info(f"Feature column list saved to {feature_list_path}")
-
-    # Evaluate best model on validation set if available
-    if X_val is not None and y_val is not None and len(X_val) > 0:
-        logger.info("=" * 60)
         logger.info(
-            f"Evaluating best model on validation set (2026): "
-            f"{best_result['model_name']}"
-        )
-        val_metrics = evaluate_model(
-            best_result["pipeline"],
-            X_val,
-            y_val,
-            f"{best_result['model_name']} [Validation]"
-        )
-        logger.info(
-            f"Validation RMSE: {val_metrics['rmse']:.4f}s | "
-            f"MAE: {val_metrics['mae']:.4f}s | "
-            f"R2: {val_metrics['r2']:.4f}"
+            f"Feature column list saved to {feature_list_path}"
         )
 
     # ---- Step 6: Print comparison table ----

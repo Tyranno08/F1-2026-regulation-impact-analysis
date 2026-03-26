@@ -1,0 +1,74 @@
+
+======================================================================
+FEATURE ENGINEERING PIPELINE — GOLD DATASET REPORT
+Generated: 2026-03-26 00:09:24
+======================================================================
+
+Total rows in Gold dataset: 31572
+Training rows:    20747
+Test rows:        9189
+Validation rows:  1636
+
+GOLD SESSION ELIGIBILITY
+----------------------------------------------------------------------
+  Total sessions evaluated:  35
+  Sessions eligible (in Gold): 33
+  Sessions excluded (Silver only): 2
+
+  Excluded sessions:
+    2025_Australia                      n_laps=98, std=4.379, max_abs=9.663
+    2025_Silverstone                    n_laps=138
+
+FEATURE SUMMARY
+----------------------------------------------------------------------
+  Feature                                           Mean      Std      Min      Max   Null%
+  -----------------------------------------------------------------
+  total_car_weight                               851.887   31.220  798.000  904.400    0.0%
+  fuel_weight_estimate                            53.887   31.220    0.000  106.400    0.0%
+  effective_tire_grip                              0.696    0.144    0.110    0.926    0.0%
+  sector1_ratio                                    0.321    0.036    0.240    0.390    0.1%
+  sector2_ratio                                    0.370    0.069    0.202    0.507    0.1%
+  sector3_ratio                                    0.308    0.067    0.186    0.454    0.1%
+  power_sensitivity_score                          0.642    0.226    0.200    0.950    0.0%
+  full_throttle_pct                                0.572    0.117    0.380    0.770    0.0%
+  avg_corner_speed_kmh                           159.025   32.179   95.000  210.000    0.0%
+  elevation_change_m                              31.501   28.778    5.000  104.000    0.0%
+  num_corners                                     16.884    3.700   11.000   27.000    0.0%
+  track_temp                                      34.928    7.880   19.000   50.700    0.0%
+  air_temp                                        23.350    4.664   14.200   33.800    0.0%
+  humidity                                        52.375   13.532   17.000   78.000    0.0%
+  driver_skill_score                              -0.003    0.506   -0.986    0.785    0.0%
+  speed_trap                                     302.682   15.688  157.000  364.000    0.0%
+  lap_time_delta_from_session_median               0.026    1.302   -5.271    7.893    0.0%
+
+DRIVER SKILL SCORES (Top 5 Fastest)
+----------------------------------------------------------------------
+  VER        -0.9862s from median
+  PER        -0.5872s from median
+  SAI        -0.5600s from median
+  HAM        -0.5282s from median
+  NOR        -0.5277s from median
+
+DRIVER SKILL SCORES (Top 5 Slowest)
+----------------------------------------------------------------------
+  ZHO        +0.6305s from median
+  MAG        +0.6366s from median
+  DEV        +0.7154s from median
+  BOT        +0.7203s from median
+  SAR        +0.7850s from median
+
+CIRCUIT POWER SENSITIVITY SCORES
+----------------------------------------------------------------------
+  Monza                0.95  ████████████████████████████
+  Spa                  0.90  ███████████████████████████
+  Jeddah               0.85  █████████████████████████
+  Silverstone          0.75  ██████████████████████
+  Interlagos           0.72  █████████████████████
+  Suzuka               0.70  █████████████████████
+  Bahrain              0.65  ███████████████████
+  China                0.62  ██████████████████
+  Australia            0.60  ██████████████████
+  Hungaroring          0.35  ██████████
+  Monaco               0.20  ██████
+
+======================================================================

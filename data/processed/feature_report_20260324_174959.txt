@@ -1,0 +1,53 @@
+
+======================================================================
+FEATURE ENGINEERING PIPELINE — GOLD DATASET REPORT
+Generated: 2026-03-24 17:49:59
+======================================================================
+
+Total rows in Gold dataset: 918
+Training rows:    918
+Validation rows:  0
+
+FEATURE SUMMARY
+----------------------------------------------------------------------
+  Feature                                           Mean      Std      Min      Max   Null%
+  -----------------------------------------------------------------
+  total_car_weight                               858.441   27.108  812.600  904.400    0.0%
+  fuel_weight_estimate                            60.441   27.108   14.600  106.400    0.0%
+  effective_tire_grip                              0.760    0.099    0.493    0.917    0.0%
+  sector1_ratio                                    0.326    0.003    0.312    0.339    0.0%
+  sector2_ratio                                    0.342    0.002    0.335    0.354    0.0%
+  sector3_ratio                                    0.332    0.002    0.320    0.342    0.0%
+  power_sensitivity_score                          0.950    0.000    0.950    0.950    0.0%
+  full_throttle_pct                                0.770    0.000    0.770    0.770    0.0%
+  avg_corner_speed_kmh                           210.000    0.000  210.000  210.000    0.0%
+  elevation_change_m                              12.000    0.000   12.000   12.000    0.0%
+  num_corners                                     11.000    0.000   11.000   11.000    0.0%
+  track_temp                                      46.293    1.940   43.600   50.700    0.0%
+  air_temp                                        32.731    0.418   32.200   33.800    0.0%
+  humidity                                        31.528    0.676   30.000   33.000    0.0%
+  driver_skill_score                              -0.071    0.761   -1.310    1.948    0.0%
+  speed_trap                                     325.069    8.244  279.000  357.000    0.0%
+  lap_time_delta_from_session_median              -0.071    1.205   -3.107    3.006    0.0%
+
+DRIVER SKILL SCORES (Top 5 Fastest)
+----------------------------------------------------------------------
+  PIA        -1.3105s from median
+  NOR        -1.1986s from median
+  HAM        -0.9045s from median
+  LEC        -0.9031s from median
+  RUS        -0.8688s from median
+
+DRIVER SKILL SCORES (Top 5 Slowest)
+----------------------------------------------------------------------
+  COL        +0.5197s from median
+  OCO        +0.9125s from median
+  BOT        +1.0743s from median
+  ZHO        +1.2091s from median
+  TSU        +1.9478s from median
+
+CIRCUIT POWER SENSITIVITY SCORES
+----------------------------------------------------------------------
+  Monza                0.95  ████████████████████████████
+
+======================================================================

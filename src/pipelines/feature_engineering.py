@@ -4,9 +4,24 @@
 Feature Engineering Pipeline — Silver to Gold Layer
 
 Reads cleaned lap data from the MySQL Silver table (clean_lap_data),
-joins it with circuit metadata, engineers all model features, and
-writes the complete modeling dataset to the Gold table
-(gold_modeling_data).
+joins it with circuit metadata, engineers all model features, applies
+a session-quality eligibility filter, and writes the modeling-ready
+dataset to the Gold table (gold_modeling_data).
+
+Architecture principle:
+    Silver is a cleaned analytical layer — it retains all usable dry
+    laps including those from mixed-condition races like Australia 2025
+    and Silverstone 2025.
+
+    Gold is the modeling-ready layer — only sessions that form a stable
+    learning distribution for supervised dry-race modeling are included.
+    Sessions that are too sparse or too noisy are excluded from Gold
+    using objective quality criteria but remain available in Silver
+    for exploratory analysis.
+
+    When running with --force, any sessions that were previously written
+    to Gold but are now excluded by the eligibility filter are explicitly
+    deleted from the Gold table to prevent stale data contamination.
 
 Features engineered:
     Weight features:
@@ -42,6 +57,19 @@ Features engineered:
 
     Target variable:
         - lap_time_delta_from_session_median (carried from Silver)
+
+Gold session eligibility filter:
+    After all features are engineered, sessions are evaluated for
+    modeling stability. A session is excluded from Gold if any of
+    the following are true:
+        - It has fewer than 200 remaining clean laps
+        - Its target standard deviation exceeds 2.5
+        - Its maximum absolute target delta exceeds 8.0
+
+    This filter ensures that mixed-condition races with too few
+    surviving dry laps or unstable target distributions do not
+    corrupt the supervised learning problem, while keeping those
+    sessions available in Silver for exploratory analysis.
 
 Usage:
     python src/pipelines/feature_engineering.py
@@ -454,9 +482,15 @@ def join_circuit_features(
 # Feature Group 5 — Driver Target Encoding
 # ============================================================
 
-def engineer_driver_skill_score(df: pd.DataFrame) -> pd.DataFrame:
+def engineer_driver_skill_score(
+    df: pd.DataFrame,
+    smoothing: int = 200
+) -> pd.DataFrame:
     """
     Engineers driver skill score using target encoding.
+
+    Driver mean lap delta is shrunk toward the global mean to reduce
+    noise from limited sample sizes and improve generalization.
 
     Target encoding replaces the categorical driver abbreviation
     with a continuous numeric value representing that driver's
@@ -487,22 +521,31 @@ def engineer_driver_skill_score(df: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info("Computing driver target encoding...")
 
-    # Compute encoding from training data only
     training_mask = df["data_split"] == "train"
+    train_df = df.loc[training_mask].copy()
 
-    driver_encoding = (
-        df[training_mask]
-        .groupby("driver")["lap_time_delta_from_session_median"]
-        .mean()
-        .rename("driver_skill_score")
+    global_mean = train_df["lap_time_delta_from_session_median"].mean()
+
+    driver_stats = (
+        train_df.groupby("driver")["lap_time_delta_from_session_median"]
+        .agg(["mean", "count"])
+        .reset_index()
     )
+
+    driver_stats["driver_skill_score"] = (
+        (driver_stats["count"] * driver_stats["mean"] +
+         smoothing * global_mean) /
+        (driver_stats["count"] + smoothing)
+    )
+
+    driver_encoding = driver_stats.set_index("driver")["driver_skill_score"]
 
     logger.info(
         f"Driver encoding computed for "
-        f"{len(driver_encoding)} drivers from training data"
+        f"{len(driver_encoding)} drivers from training data "
+        f"(smoothing={smoothing})"
     )
 
-    # Log the top and bottom 5 drivers for sanity check
     sorted_encoding = driver_encoding.sort_values()
     logger.info("Fastest drivers by skill score (most negative = fastest):")
     for driver, score in sorted_encoding.head(5).items():
@@ -511,17 +554,15 @@ def engineer_driver_skill_score(df: pd.DataFrame) -> pd.DataFrame:
     for driver, score in sorted_encoding.tail(5).items():
         logger.info(f"  {driver}: {score:.4f}s")
 
-    # Map encoding back onto all rows including validation
     df["driver_skill_score"] = df["driver"].map(driver_encoding)
 
-    # Fill new drivers in validation set with global mean (0.0 approx)
-    global_mean = driver_encoding.mean()
     new_drivers = df["driver_skill_score"].isna().sum()
     if new_drivers > 0:
         logger.info(
             f"{new_drivers} laps have drivers not in training data. "
             f"Filling with global mean: {global_mean:.4f}"
         )
+
     df["driver_skill_score"] = df["driver_skill_score"].fillna(global_mean)
 
     return df
@@ -578,14 +619,25 @@ def impute_weather_features(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def engineer_interaction_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds a small number of physics-informed interaction features.
+    """
+    df["grip_temp_interaction"] = (
+        df["effective_tire_grip"] * df["track_temp"]
+    )
 
+    logger.info(
+        "Interaction features engineered: grip_temp_interaction"
+    )
+    return df
 # ============================================================
 # Feature Group 7 — Speed Trap Imputation
 # ============================================================
 
 def impute_speed_trap(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Imputes missing speed trap values.
+    Imputes missing speed trap values using increasingly broader groups.
 
     Speed trap measures the car's top speed at a designated
     straight on each circuit. It is a proxy for aerodynamic
@@ -607,21 +659,26 @@ def impute_speed_trap(df: pd.DataFrame) -> pd.DataFrame:
         logger.info("speed_trap: no nulls to impute")
         return df
 
-    # Driver and circuit level imputation
+    # Driver + circuit
     df["speed_trap"] = df.groupby(
         ["driver", "circuit"]
     )["speed_trap"].transform(
         lambda x: x.fillna(x.median())
     )
 
-    # Circuit level fallback
+    # Team + circuit
     df["speed_trap"] = df.groupby(
-        "circuit"
+        ["team", "circuit"]
     )["speed_trap"].transform(
         lambda x: x.fillna(x.median())
     )
 
-    # Global fallback
+    # Circuit
+    df["speed_trap"] = df.groupby("circuit")["speed_trap"].transform(
+        lambda x: x.fillna(x.median())
+    )
+
+    # Global
     df["speed_trap"] = df["speed_trap"].fillna(df["speed_trap"].median())
 
     null_after = df["speed_trap"].isna().sum()
@@ -630,6 +687,180 @@ def impute_speed_trap(df: pd.DataFrame) -> pd.DataFrame:
         f"({null_after} remaining)"
     )
     return df
+
+
+# ============================================================
+# Gold Session Eligibility Filter
+# ============================================================
+
+def filter_modeling_eligible_sessions(
+    df: pd.DataFrame,
+    min_laps: int = 200,
+    max_target_std: float = 2.5,
+    max_abs_delta: float = 8.0
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Filters out sessions that are too unstable for Gold modeling use.
+
+    Silver may contain cleaned dry laps from heavily mixed-condition
+    races, but some sessions remain too sparse or too noisy to be
+    reliable for supervised modeling. This function excludes those
+    sessions from the Gold layer using objective quality criteria.
+
+    Why this filter exists:
+        Mixed-condition races like Australia 2025 (98 surviving dry
+        laps) and Silverstone 2025 (138 surviving dry laps) pass all
+        cleaning steps correctly — their dry laps are genuine. But
+        the resulting session data is too sparse and too noisy to
+        form a stable learning distribution. Including them in Gold
+        would let a handful of noisy laps dominate the model.
+
+        By keeping these sessions in Silver but excluding them from
+        Gold, we maintain a clean analytical layer while ensuring
+        the modeling layer contains only stable, well-populated
+        sessions.
+
+    Exclusion rules — a session is NOT modeling-eligible if ANY of:
+        - fewer than min_laps remaining clean laps
+        - target standard deviation above max_target_std
+        - maximum absolute lap delta above max_abs_delta
+
+    Why these thresholds:
+        min_laps = 200:
+            Avoids weak sessions dominating by noise. A normal dry
+            race with 20 drivers and ~55 laps produces 800+ clean
+            laps after filtering. Sessions below 200 are severely
+            incomplete.
+
+        target_std > 2.5:
+            Flags highly unstable pace distributions. Normal dry
+            sessions have target std around 0.8-1.5 seconds. A std
+            above 2.5 indicates transition effects or anomalous
+            pace variation that would corrupt model training.
+
+        max_abs_delta > 8.0:
+            Flags transition or anomalous pace leftovers. No genuine
+            dry racing lap should be more than ~7 seconds from the
+            session median. Values above 8.0 indicate contamination
+            from drying-track conditions that survived upstream
+            filters.
+
+    Args:
+        df:             Silver dataframe after feature engineering
+                        and target already present
+        min_laps:       Minimum clean laps required for modeling
+        max_target_std: Maximum allowed std of target variable
+        max_abs_delta:  Maximum allowed absolute target value
+
+    Returns:
+        Tuple of:
+            - filtered Gold dataframe (only eligible sessions)
+            - session diagnostics dataframe (all sessions with
+              their quality metrics and eligibility status)
+    """
+    logger.info("Applying Gold modeling session eligibility filter...")
+    logger.info(
+        f"  Thresholds: min_laps={min_laps}, "
+        f"max_target_std={max_target_std}, "
+        f"max_abs_delta={max_abs_delta}"
+    )
+
+    before_sessions = df["race_id"].nunique()
+    before_rows = len(df)
+
+    # Compute quality metrics per session
+    session_stats = (
+        df.groupby(["race_id", "season", "circuit"])
+        .agg(
+            n_laps=("lap_time_delta_from_session_median", "count"),
+            target_std=("lap_time_delta_from_session_median", "std"),
+            target_mean=("lap_time_delta_from_session_median", "mean"),
+            min_delta=("lap_time_delta_from_session_median", "min"),
+            max_delta=("lap_time_delta_from_session_median", "max")
+        )
+        .reset_index()
+    )
+
+    session_stats["max_abs_delta"] = session_stats[
+        ["min_delta", "max_delta"]
+    ].abs().max(axis=1)
+
+    # Apply eligibility rules
+    session_stats["eligible_for_modeling"] = (
+        (session_stats["n_laps"] >= min_laps) &
+        (session_stats["target_std"] <= max_target_std) &
+        (session_stats["max_abs_delta"] <= max_abs_delta)
+    )
+
+    # Log excluded sessions with specific reasons
+    excluded_sessions = session_stats[
+        ~session_stats["eligible_for_modeling"]
+    ].copy()
+
+    if not excluded_sessions.empty:
+        logger.warning(
+            f"Excluding {len(excluded_sessions)} session(s) from Gold "
+            f"modeling layer due to insufficient stability:"
+        )
+
+        for _, row in excluded_sessions.iterrows():
+            reasons = []
+            if row["n_laps"] < min_laps:
+                reasons.append(
+                    f"n_laps={int(row['n_laps'])} < {min_laps}"
+                )
+            if row["target_std"] > max_target_std:
+                reasons.append(
+                    f"target_std={row['target_std']:.3f} "
+                    f"> {max_target_std}"
+                )
+            if row["max_abs_delta"] > max_abs_delta:
+                reasons.append(
+                    f"max_abs_delta={row['max_abs_delta']:.3f} "
+                    f"> {max_abs_delta}"
+                )
+
+            logger.warning(
+                f"  {row['race_id']} "
+                f"({int(row['season'])} {row['circuit']}) "
+                f"excluded — " + ", ".join(reasons)
+            )
+    else:
+        logger.info(
+            "All sessions passed Gold eligibility filter — "
+            "no sessions excluded"
+        )
+
+    # Log eligible sessions for completeness
+    eligible_sessions = session_stats[
+        session_stats["eligible_for_modeling"]
+    ]
+    logger.info(
+        f"Eligible sessions: {len(eligible_sessions)} "
+        f"(excluded: {len(excluded_sessions)})"
+    )
+
+    # Filter to eligible sessions only
+    eligible_race_ids = set(
+        session_stats.loc[
+            session_stats["eligible_for_modeling"],
+            "race_id"
+        ]
+    )
+
+    filtered_df = df[df["race_id"].isin(eligible_race_ids)].copy()
+
+    after_sessions = filtered_df["race_id"].nunique()
+    after_rows = len(filtered_df)
+
+    logger.info(
+        f"Gold eligibility filter complete: "
+        f"{after_rows}/{before_rows} rows retained "
+        f"({after_rows/before_rows*100:.1f}%) "
+        f"across {after_sessions}/{before_sessions} eligible sessions"
+    )
+
+    return filtered_df, session_stats
 
 
 # ============================================================
@@ -781,6 +1012,68 @@ def check_already_engineered(race_id: str, conn) -> bool:
     return count > 0
 
 
+def delete_excluded_gold_sessions(
+    excluded_race_ids: list[str],
+    conn
+) -> int:
+    """
+    Deletes excluded sessions from the Gold table.
+
+    This is necessary when a session was written to Gold in a
+    previous run but is now excluded by the Gold session eligibility
+    filter. Without this cleanup, stale rows remain in
+    gold_modeling_data and contaminate modeling splits.
+
+    This is a classic stale-data prevention pattern. The eligibility
+    filter removes excluded sessions from the in-memory dataframe,
+    but write_gold_data() only deletes records for race_ids that
+    it is about to re-write. So excluded race_ids would never be
+    written — but also never deleted — leaving orphaned rows from
+    previous runs.
+
+    Args:
+        excluded_race_ids: List of race_ids excluded from current
+                           Gold run by the eligibility filter
+        conn:              Active MySQL connection
+
+    Returns:
+        Number of sessions deleted.
+    """
+    if not excluded_race_ids:
+        return 0
+
+    cursor = conn.cursor()
+    deleted_sessions = 0
+
+    for race_id in excluded_race_ids:
+        # Check if stale records actually exist before deleting
+        cursor.execute(
+            "SELECT COUNT(*) FROM gold_modeling_data WHERE race_id = %s",
+            (race_id,)
+        )
+        existing_count = cursor.fetchone()[0]
+
+        if existing_count > 0:
+            cursor.execute(
+                "DELETE FROM gold_modeling_data WHERE race_id = %s",
+                (race_id,)
+            )
+            deleted_sessions += 1
+            logger.info(
+                f"Deleted {existing_count} stale Gold records "
+                f"for excluded session: {race_id}"
+            )
+        else:
+            logger.debug(
+                f"No stale Gold records found for {race_id} — "
+                f"nothing to delete"
+            )
+
+    conn.commit()
+    cursor.close()
+    return deleted_sessions
+
+
 def write_gold_data(
     df: pd.DataFrame,
     engine,
@@ -812,7 +1105,8 @@ def write_gold_data(
         "power_sensitivity_score", "full_throttle_pct",
         "avg_corner_speed_kmh", "elevation_change_m", "num_corners",
         "track_temp", "air_temp", "humidity",
-        "driver_skill_score", "speed_trap"
+        "driver_skill_score", "speed_trap","grip_temp_interaction",
+        "data_split"
     ]
 
     # Keep only columns that exist in both df and gold schema
@@ -872,16 +1166,29 @@ def write_gold_data(
 # Feature Summary Report
 # ============================================================
 
-def generate_feature_report(df: pd.DataFrame) -> None:
+def generate_feature_report(
+    df: pd.DataFrame,
+    session_quality_df: pd.DataFrame = None
+) -> None:
     """
     Prints a summary of the engineered feature set.
 
     This report documents the feature distributions and coverage
     for inclusion in the project README and for interview discussion.
 
+    If session_quality_df is provided, the report also includes
+    a section documenting which sessions were excluded from Gold
+    and why, providing a complete audit trail.
+
     Args:
-        df: Fully engineered Gold dataframe
+        df:                 Fully engineered Gold dataframe
+        session_quality_df: Optional session diagnostics from
+                            the eligibility filter
     """
+    train_count = (df["data_split"] == "train").sum()
+    test_count = (df["data_split"] == "test").sum()
+    val_count = (df["data_split"] == "validation").sum()
+
     report_lines = [
         "",
         "=" * 70,
@@ -890,11 +1197,53 @@ def generate_feature_report(df: pd.DataFrame) -> None:
         "=" * 70,
         "",
         f"Total rows in Gold dataset: {len(df)}",
-        f"Training rows:    "
-        f"{(df['data_split'] == 'train').sum()}",
-        f"Validation rows:  "
-        f"{(df['data_split'] == 'validation').sum()}",
+        f"Training rows:    {train_count}",
+        f"Test rows:        {test_count}",
+        f"Validation rows:  {val_count}",
         "",
+    ]
+
+    # ---- Session Eligibility Report ----
+    if session_quality_df is not None:
+        eligible = session_quality_df[
+            session_quality_df["eligible_for_modeling"]
+        ]
+        excluded = session_quality_df[
+            ~session_quality_df["eligible_for_modeling"]
+        ]
+
+        report_lines += [
+            "GOLD SESSION ELIGIBILITY",
+            "-" * 70,
+            f"  Total sessions evaluated:  {len(session_quality_df)}",
+            f"  Sessions eligible (in Gold): {len(eligible)}",
+            f"  Sessions excluded (Silver only): {len(excluded)}",
+            "",
+        ]
+
+        if not excluded.empty:
+            report_lines.append("  Excluded sessions:")
+            for _, row in excluded.iterrows():
+                reasons = []
+                if row["n_laps"] < 200:
+                    reasons.append(
+                        f"n_laps={int(row['n_laps'])}"
+                    )
+                if row["target_std"] > 2.5:
+                    reasons.append(
+                        f"std={row['target_std']:.3f}"
+                    )
+                if row["max_abs_delta"] > 8.0:
+                    reasons.append(
+                        f"max_abs={row['max_abs_delta']:.3f}"
+                    )
+                report_lines.append(
+                    f"    {row['race_id']:<35} "
+                    f"{', '.join(reasons)}"
+                )
+            report_lines.append("")
+
+    report_lines += [
         "FEATURE SUMMARY",
         "-" * 70,
     ]
@@ -1022,6 +1371,34 @@ def run_feature_engineering_pipeline(
     """
     Orchestrates the full Silver to Gold feature engineering pipeline.
 
+    Pipeline steps:
+        1.  Load Silver data and circuit metadata
+        2.  Engineer all feature groups:
+            - Weight features (total_car_weight)
+            - Tire degradation (effective_tire_grip)
+            - Sector ratios
+            - Circuit metadata join
+            - Weather imputation
+            - Speed trap imputation
+            - Driver target encoding (driver_skill_score)
+        3.  Apply Gold session eligibility filter
+        3B. Delete stale excluded sessions from Gold table
+        4.  Save session quality diagnostics report
+        5.  Validate Gold features
+        6.  Generate feature summary report
+        7.  Write eligible sessions to Gold table
+
+    The session eligibility filter (step 3) ensures that only
+    sessions with a stable learning distribution reach the Gold
+    table. Sessions excluded from Gold remain in Silver for
+    exploratory analysis.
+
+    Step 3B prevents stale data contamination: when a session was
+    written to Gold in a previous run but is now excluded by the
+    eligibility filter, it must be explicitly deleted. Without this
+    cleanup, write_gold_data() would never touch those race_ids
+    because they are no longer in the filtered dataframe.
+
     Args:
         seasons:  Optional season filter
         circuits: Optional circuit filter
@@ -1064,6 +1441,7 @@ def run_feature_engineering_pipeline(
     df = engineer_sector_ratios(df)
     df = join_circuit_features(df, circuit_meta)
     df = impute_weather_features(df)
+    df = engineer_interaction_features(df)
     df = impute_speed_trap(df)
 
     # Driver encoding must come after circuit join because
@@ -1072,10 +1450,67 @@ def run_feature_engineering_pipeline(
 
     logger.info(
         f"All feature groups engineered. "
-        f"Gold dataset shape: {df.shape}"
+        f"Dataset shape before eligibility filter: {df.shape}"
     )
 
-    # ---- Step 3: Validate features ----
+    # ---- Step 3: Apply Gold session eligibility filter ----
+    # This removes sessions that are too sparse or too noisy for
+    # supervised modeling. Excluded sessions remain in Silver.
+    df, session_quality_df = filter_modeling_eligible_sessions(df)
+
+    if df.empty:
+        logger.critical(
+            "ALL sessions excluded by Gold eligibility filter. "
+            "No data to write to Gold table. "
+            "Check filter thresholds or Silver data quality."
+        )
+        conn.close()
+        return
+
+    # ---- Step 3B: Delete stale excluded sessions from Gold ----
+    # When --force is used, sessions that were previously in Gold
+    # but are now excluded by the eligibility filter must be
+    # explicitly deleted. The write_gold_data function only deletes
+    # sessions it is about to re-write, so excluded sessions would
+    # otherwise remain as stale orphaned records.
+    excluded_race_ids = session_quality_df.loc[
+        ~session_quality_df["eligible_for_modeling"],
+        "race_id"
+    ].tolist()
+
+    if force and excluded_race_ids:
+        deleted_excluded = delete_excluded_gold_sessions(
+            excluded_race_ids, conn
+        )
+        logger.info(
+            f"Deleted {deleted_excluded} excluded session(s) from "
+            f"Gold table to prevent stale rows"
+        )
+    elif excluded_race_ids:
+        logger.info(
+            f"{len(excluded_race_ids)} session(s) excluded from Gold. "
+            f"Use --force to also delete any stale Gold records for "
+            f"these sessions from previous runs."
+        )
+
+    # ---- Step 4: Save session quality diagnostics ----
+    diagnostics_dir = os.path.join(
+        os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )),
+        "data", "processed"
+    )
+    os.makedirs(diagnostics_dir, exist_ok=True)
+    diagnostics_path = os.path.join(
+        diagnostics_dir,
+        "gold_session_quality_report.csv"
+    )
+    session_quality_df.to_csv(diagnostics_path, index=False)
+    logger.info(
+        f"Gold session quality report saved to {diagnostics_path}"
+    )
+
+    # ---- Step 5: Validate features ----
     validation_passed = validate_gold_features(df)
 
     if not validation_passed:
@@ -1086,10 +1521,10 @@ def run_feature_engineering_pipeline(
         conn.close()
         return
 
-    # ---- Step 4: Generate feature report ----
-    generate_feature_report(df)
+    # ---- Step 6: Generate feature report ----
+    generate_feature_report(df, session_quality_df=session_quality_df)
 
-    # ---- Step 5: Write to Gold table ----
+    # ---- Step 7: Write to Gold table ----
     total_written = write_gold_data(df, engine, conn, force=force)
 
     conn.close()

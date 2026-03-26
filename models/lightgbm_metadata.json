@@ -1,6 +1,6 @@
 {
   "model_name": "LightGBM",
-  "trained_at": "2026-03-25T18:22:42.125972",
+  "trained_at": "2026-03-26T19:04:33.700122",
   "feature_columns": [
     "circuit",
     "total_car_weight",
@@ -31,10 +31,10 @@
   "test_season": 2025,
   "metrics": {
     "model_name": "LightGBM",
-    "rmse": 0.8993,
-    "mae": 0.6792,
-    "r2": 0.5125,
-    "mape": 95.7514,
+    "rmse": 0.9197,
+    "mae": 0.6988,
+    "r2": 0.4902,
+    "mape": 98.9911,
     "n_test_samples": 9189
   }
 }
