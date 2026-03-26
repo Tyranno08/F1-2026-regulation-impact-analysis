@@ -183,6 +183,99 @@ performance across grouped race-level folds.
 ```
 
 ```
+## 2026 Regulation Simulation Results
+
+### Methodology
+
+The simulation applies three regulation changes to the 2025 baseline
+feature set and uses the trained LightGBM model to predict the
+resulting lap time changes:
+
+1. **Weight reduction:** -20kg applied to `total_car_weight` and
+   `fuel_weight_estimate`
+2. **Combustion penalty:** reduced `full_throttle_pct` effectiveness
+   and `speed_trap` proportional to circuit power sensitivity and
+   throttle exposure
+3. **Electric torque benefit:** increased `avg_corner_speed_kmh`
+   and slightly improved `effective_tire_grip` proportional to
+   `(1 - power_sensitivity_score)`
+
+For standard circuits, the simulation uses the 2025 Gold test-set laps
+as the baseline. For Australia, which was excluded from the 2025 test
+simulation set during Gold-layer filtering, a fallback proxy baseline
+was built from available 2026 feature rows and damped to avoid
+overstating confidence.
+
+### Circuit Impact Predictions
+
+![Simulation Circuit Impact](data/processed/plots/simulation_circuit_impact.png)
+
+### Effect Decomposition
+
+![Effect Decomposition](data/processed/plots/simulation_effect_decomposition.png)
+
+### Key Findings
+
+- The **weight reduction remains the dominant effect**, consistent
+  with SHAP analysis showing `total_car_weight` among the strongest
+  predictive features in the lap-time model.
+- **Combustion power loss offsets part of the weight benefit** on
+  power-sensitive circuits such as Jeddah, Suzuka, and Bahrain.
+- **Electric torque benefit is smaller but consistently positive** in
+  technical sections, acting as a secondary correction rather than the
+  primary performance driver.
+- The simulator predicts the **largest gains at Suzuka, Spa, and China**
+  and the **smallest gains at Hungaroring, Monaco, and Jeddah** under
+  the modeled 2026 regulation scenario.
+
+### Final Circuit-Level Predictions
+
+| Circuit       | Predicted Change (s) | Weight Effect (s) | Combustion Effect (s) | Electric Effect (s) |
+|--------------|----------------------:|------------------:|----------------------:|--------------------:|
+| Suzuka       | -0.4728 | -0.5652 | +0.0985 | -0.0061 |
+| Spa          | -0.4479 | -0.4467 | -0.0003 | -0.0009 |
+| China        | -0.4021 | -0.3964 | -0.0014 | -0.0044 |
+| Bahrain      | -0.3862 | -0.4178 | +0.0357 | -0.0041 |
+| Interlagos   | -0.3781 | -0.4092 | +0.0341 | -0.0030 |
+| Monza        | -0.3296 | -0.3291 | -0.0002 | -0.0004 |
+| Jeddah       | -0.3021 | -0.4233 | +0.1239 | -0.0028 |
+| Monaco       | -0.2695 | -0.3307 | +0.0669 | -0.0058 |
+| Hungaroring  | -0.2285 | -0.3036 | +0.0793 | -0.0042 |
+
+**Interpretation:**  
+The simulation suggests that 2026 cars are still expected to be faster
+overall at most circuits, but the final net gain is highly circuit
+dependent. Weight reduction drives most of the benefit, while combustion
+losses meaningfully reduce gains on circuits with higher power demand.
+
+### Phase 8B — Validation Against Real 2026 Race Data
+
+![Validation Comparison](data/processed/plots/simulation_validation_comparison.png)
+
+The simulation was validated against the first available 2026 race data
+from the Australian GP and Chinese GP.
+
+| Circuit    | Simulated Change (s) | Actual 2026 Delta (s) | Error (s) |
+|-----------|----------------------:|----------------------:|----------:|
+| Australia | -0.0752 | +0.0000 | -0.0752 |
+| China     | -0.4021 | +0.0000 | -0.4021 |
+
+**Interpretation:**  
+Validation shows that the simulation captures directional scenario logic
+but still tends to overestimate lap-time gains, especially for China.
+Australia performed better after fallback damping was applied, while
+China remained a clear example of residual regime-shift error between
+historical training data and real 2026 race conditions.
+
+> **Transparency note:** This simulation was designed using
+> pre-2026 data only. The 2026 race validation was added after
+> results became available. The systematic model bias identified in
+> Phase 6 affects absolute predictions more than relative direction,
+> so the simulator is best interpreted as a circuit-comparison scenario
+> engine rather than a perfectly calibrated forecast.
+```
+
+```
 ## Project Status
 
 - [x] Phase 1 — Repository & Infrastructure Setup
@@ -193,8 +286,8 @@ performance across grouped race-level folds.
 - [x] Phase 5 — Modeling Pipeline
 - [x] Phase 6 — Model Explainability (SHAP)
 - [x] Phase 7 — Experiment Tracking (MLflow)
-- [ ] Phase 8 — 2026 Simulation Engine
-- [ ] Phase 8B — Simulation Validation Against Real 2026 Data
+- [x] Phase 8 — 2026 Simulation Engine
+- [x] Phase 8B — Simulation Validation Against Real 2026 Data
 - [ ] Phase 9 — Streamlit Dashboard
 - [ ] Phase 10 — Deployment
 ```

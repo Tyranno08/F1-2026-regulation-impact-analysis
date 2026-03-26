@@ -1,0 +1,148 @@
+{
+    "generated_at": "2026-03-26T23:39:39.866124",
+    "baseline_season": 2025,
+    "simulation_season": 2026,
+    "circuits": [
+        {
+            "circuit": "Suzuka",
+            "mean_lap_change": -0.4728,
+            "median_lap_change": -0.4105,
+            "std_lap_change": 0.3578,
+            "n_laps": 988,
+            "n_drivers": 20,
+            "weight_effect": -0.5652,
+            "combustion_effect": 0.0985,
+            "electric_effect": -0.0061,
+            "power_plus_electric_effect": 0.0924,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "Spa",
+            "mean_lap_change": -0.4479,
+            "median_lap_change": -0.4538,
+            "std_lap_change": 0.2691,
+            "n_laps": 974,
+            "n_drivers": 19,
+            "weight_effect": -0.4467,
+            "combustion_effect": -0.0003,
+            "electric_effect": -0.0009,
+            "power_plus_electric_effect": -0.0012,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "China",
+            "mean_lap_change": -0.4021,
+            "median_lap_change": -0.3985,
+            "std_lap_change": 0.2343,
+            "n_laps": 989,
+            "n_drivers": 20,
+            "weight_effect": -0.3964,
+            "combustion_effect": -0.0014,
+            "electric_effect": -0.0044,
+            "power_plus_electric_effect": -0.0058,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "Bahrain",
+            "mean_lap_change": -0.3862,
+            "median_lap_change": -0.3812,
+            "std_lap_change": 0.2802,
+            "n_laps": 966,
+            "n_drivers": 20,
+            "weight_effect": -0.4178,
+            "combustion_effect": 0.0357,
+            "electric_effect": -0.0041,
+            "power_plus_electric_effect": 0.0316,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "Interlagos",
+            "mean_lap_change": -0.3781,
+            "median_lap_change": -0.3938,
+            "std_lap_change": 0.2988,
+            "n_laps": 1019,
+            "n_drivers": 20,
+            "weight_effect": -0.4092,
+            "combustion_effect": 0.0341,
+            "electric_effect": -0.003,
+            "power_plus_electric_effect": 0.0311,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "Monza",
+            "mean_lap_change": -0.3296,
+            "median_lap_change": -0.3213,
+            "std_lap_change": 0.1682,
+            "n_laps": 909,
+            "n_drivers": 19,
+            "weight_effect": -0.3291,
+            "combustion_effect": -0.0002,
+            "electric_effect": -0.0004,
+            "power_plus_electric_effect": -0.0006,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "Jeddah",
+            "mean_lap_change": -0.3021,
+            "median_lap_change": -0.3141,
+            "std_lap_change": 0.2035,
+            "n_laps": 798,
+            "n_drivers": 18,
+            "weight_effect": -0.4233,
+            "combustion_effect": 0.1239,
+            "electric_effect": -0.0028,
+            "power_plus_electric_effect": 0.1211,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "Monaco",
+            "mean_lap_change": -0.2695,
+            "median_lap_change": -0.2683,
+            "std_lap_change": 0.3207,
+            "n_laps": 1262,
+            "n_drivers": 20,
+            "weight_effect": -0.3307,
+            "combustion_effect": 0.0669,
+            "electric_effect": -0.0058,
+            "power_plus_electric_effect": 0.0611,
+            "impact_label": "Faster"
+        },
+        {
+            "circuit": "Hungaroring",
+            "mean_lap_change": -0.2285,
+            "median_lap_change": -0.2157,
+            "std_lap_change": 0.2476,
+            "n_laps": 1284,
+            "n_drivers": 20,
+            "weight_effect": -0.3036,
+            "combustion_effect": 0.0793,
+            "electric_effect": -0.0042,
+            "power_plus_electric_effect": 0.0751,
+            "impact_label": "Faster"
+        }
+    ],
+    "validation": [
+        {
+            "circuit": "Australia",
+            "actual_2026_delta": 0.0,
+            "simulated_change": -0.0752,
+            "simulation_error_seconds": -0.0752,
+            "fallback_used": true,
+            "n_real_laps": 826
+        },
+        {
+            "circuit": "China",
+            "actual_2026_delta": 0.0,
+            "simulated_change": -0.4021,
+            "simulation_error_seconds": -0.4021,
+            "fallback_used": false,
+            "n_real_laps": 810
+        }
+    ],
+    "summary": {
+        "avg_impact": -0.35742222222222225,
+        "max_impact": -0.2285,
+        "min_impact": -0.4728,
+        "circuit_count": 9
+    }
+}

@@ -166,9 +166,10 @@ tire_model:
 
 # 2026 Simulation Parameters
 simulation_2026:
-  weight_reduction_kg: 30
-  combustion_power_penalty_factor: 0.02
-  electric_torque_gain_factor: 0.015
+  weight_reduction_kg: 20
+  combustion_power_penalty_factor: 0.10
+  electric_torque_gain_factor: 0.03
+  fallback_damping_factor: 0.5
 
 # Modeling configuration
 modeling:
