@@ -8,6 +8,30 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+def get_db_credentials():
+    """
+    Returns database credentials from environment variables or
+    Streamlit Secrets (for Streamlit Cloud deployment).
+    """
+    # Try Streamlit secrets first (for deployed app)
+    try:
+        import streamlit as st
+        return {
+            "host":     st.secrets.get("MYSQL_HOST",     os.getenv("MYSQL_HOST", "localhost")),
+            "port":     int(st.secrets.get("MYSQL_PORT", os.getenv("MYSQL_PORT", 3306))),
+            "user":     st.secrets.get("MYSQL_USER",     os.getenv("MYSQL_USER", "root")),
+            "password": st.secrets.get("MYSQL_PASSWORD", os.getenv("MYSQL_PASSWORD", "")),
+            "database": st.secrets.get("MYSQL_DATABASE", os.getenv("MYSQL_DATABASE", "f1_analysis")),
+        }
+    except Exception:
+        # Fall back to environment variables (.env file)
+        return {
+            "host":     os.getenv("MYSQL_HOST", "localhost"),
+            "port":     int(os.getenv("MYSQL_PORT", 3306)),
+            "user":     os.getenv("MYSQL_USER", "root"),
+            "password": os.getenv("MYSQL_PASSWORD", ""),
+            "database": os.getenv("MYSQL_DATABASE", "f1_analysis"),
+        }
 
 def get_mysql_connection():
     """
